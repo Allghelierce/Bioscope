@@ -74,6 +74,11 @@
     100% { background-position: 0% 50%; }
   }
 
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+  }
+
   .animated-gradient {
     background-size: 200% 200%;
     animation: gradient-shift 8s ease infinite;

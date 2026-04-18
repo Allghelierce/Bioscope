@@ -44,10 +44,13 @@ def handle_get_regions(event):
 
 
 def handle_get_region_detail(event, region_id: str):
+    if not region_id:
+        return cors_response(400, {"error": "Region ID is required"})
+
     region = region_id.replace("-", " ").title()
 
     summary = query_snowflake(
-        "SELECT * FROM regional_biodiversity WHERE region = %s", (region,)
+        "SELECT * FROM region_rankings WHERE region = %s", (region,)
     )
     if not summary:
         return cors_response(404, {"error": "Region not found"})
@@ -75,7 +78,10 @@ def handle_get_trends(event):
 
 
 def handle_explain(event):
-    body = json.loads(event.get("body", "{}"))
+    try:
+        body = json.loads(event.get("body", "{}"))
+    except json.JSONDecodeError:
+        return cors_response(400, {"error": "Invalid JSON in request body"})
     region_name = body.get("region")
     region_data = body.get("data", {})
 

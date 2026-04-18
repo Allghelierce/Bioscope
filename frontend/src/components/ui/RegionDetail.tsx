@@ -11,6 +11,7 @@ import {
 import type { RegionDetail as RegionDetailType } from "@/types";
 import { explainRegion } from "@/lib/api";
 import TrendChart from "@/components/charts/TrendChart";
+import DualAxisChart from "@/components/charts/DualAxisChart";
 
 interface Props {
   detail: RegionDetailType;
@@ -136,11 +137,20 @@ export default function RegionDetailPanel({ detail, onClose }: Props) {
       </div>
 
       <div className="px-6 pb-6">
-        <TrendChart
+        <DualAxisChart
           data={detail.trends}
-          title="Species Diversity Over Time"
-          subtitle={`Tracking unique species observed in ${detail.region.region}`}
+          title="Species & Observations Over Time"
+          subtitle={`Monthly species diversity and observation volume in ${detail.region.region}`}
         />
+
+        <div className="mt-4">
+          <TrendChart
+            data={detail.trends}
+            title="Species Trend"
+            subtitle="Unique species count with period average"
+            height={220}
+          />
+        </div>
 
         <motion.div
           initial={{ opacity: 0 }}

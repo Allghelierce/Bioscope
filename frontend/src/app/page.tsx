@@ -5,73 +5,21 @@ import dynamic from "next/dynamic";
 import { AnimatePresence } from "framer-motion";
 import type { Region, RegionDetail as RegionDetailType, MonthlyTrend, DecliningRegion } from "@/types";
 import { getRegions, getRegionDetail, getTrends } from "@/lib/api";
+import { MOCK_REGIONS, MOCK_TRENDS, MOCK_DECLINING, MOCK_REGION_DETAIL } from "@/lib/mockData";
 import Navbar from "@/components/ui/Navbar";
 import Hero from "@/components/ui/Hero";
 import SectionHeader from "@/components/ui/SectionHeader";
 import StatsGrid from "@/components/ui/StatsGrid";
 import TrendChart from "@/components/charts/TrendChart";
+import RegionComparisonChart from "@/components/charts/RegionComparisonChart";
+import SpeciesDonutChart from "@/components/charts/SpeciesDonutChart";
 import RankingsTable from "@/components/ui/RankingsTable";
 import RegionDetailPanel from "@/components/ui/RegionDetail";
 import PipelineVisual from "@/components/ui/PipelineVisual";
+import ScrollToTop from "@/components/ui/ScrollToTop";
 import Footer from "@/components/ui/Footer";
 
 const BiodiversityMap = dynamic(() => import("@/components/map/BiodiversityMap"), { ssr: false });
-
-const MOCK_REGIONS: Region[] = [
-  { region: "California", biodiversity_score: 4.23, unique_species: 342, total_observations: 5210, rank: 1 },
-  { region: "Florida", biodiversity_score: 3.98, unique_species: 298, total_observations: 4100, rank: 2 },
-  { region: "Texas", biodiversity_score: 3.76, unique_species: 271, total_observations: 3800, rank: 3 },
-  { region: "Oregon", biodiversity_score: 3.54, unique_species: 234, total_observations: 2900, rank: 4 },
-  { region: "Colorado", biodiversity_score: 3.31, unique_species: 198, total_observations: 2500, rank: 5 },
-  { region: "Washington", biodiversity_score: 3.12, unique_species: 187, total_observations: 2300, rank: 6 },
-  { region: "Arizona", biodiversity_score: 2.89, unique_species: 165, total_observations: 1900, rank: 7 },
-  { region: "New Mexico", biodiversity_score: 2.67, unique_species: 142, total_observations: 1600, rank: 8 },
-  { region: "Utah", biodiversity_score: 2.45, unique_species: 128, total_observations: 1400, rank: 9 },
-  { region: "Nevada", biodiversity_score: 2.11, unique_species: 98, total_observations: 1100, rank: 10 },
-];
-
-const MOCK_TRENDS: MonthlyTrend[] = Array.from({ length: 36 }, (_, i) => {
-  const date = new Date(2022, i, 1);
-  const base = 400 + Math.sin(i / 6) * 80;
-  return {
-    year_month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
-    total_unique_species: Math.round(base + Math.random() * 40 + i * 2),
-    total_observations: Math.round((base + Math.random() * 40) * 6),
-    regions_reporting: 10,
-  };
-});
-
-const MOCK_DECLINING: DecliningRegion[] = [
-  { region: "Nevada", first_year_species: 120, last_year_species: 98, species_change: -22, pct_change: -18.3 },
-  { region: "Utah", first_year_species: 145, last_year_species: 128, species_change: -17, pct_change: -11.7 },
-  { region: "Arizona", first_year_species: 178, last_year_species: 165, species_change: -13, pct_change: -7.3 },
-];
-
-const MOCK_REGION_DETAIL: Record<string, RegionDetailType> = Object.fromEntries(
-  MOCK_REGIONS.map((r) => [
-    r.region,
-    {
-      region: r,
-      trends: Array.from({ length: 36 }, (_, i) => {
-        const date = new Date(2022, i, 1);
-        const base = r.unique_species / 3 + Math.sin(i / 4) * 15;
-        return {
-          year_month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
-          unique_species: Math.round(base + Math.random() * 10 + i * 0.5),
-          observation_count: Math.round((base + Math.random() * 10) * 4),
-          region: r.region,
-        };
-      }),
-      decline_info: MOCK_DECLINING.find((d) => d.region === r.region) ?? {
-        region: r.region,
-        first_year_species: Math.round(r.unique_species * 0.85),
-        last_year_species: r.unique_species,
-        species_change: Math.round(r.unique_species * 0.15),
-        pct_change: 15,
-      },
-    },
-  ])
-);
 
 export default function Home() {
   const [regions, setRegions] = useState<Region[]>([]);
@@ -119,12 +67,19 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-950">
         <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center mx-auto mb-4 float-animation">
-            <span className="text-2xl">🌿</span>
+          <div className="relative w-20 h-20 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 animate-pulse" />
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 opacity-30 blur-xl animate-pulse" />
+            <div className="absolute inset-0 flex items-center justify-center text-3xl">🌿</div>
           </div>
-          <div className="text-white/40 text-sm">Loading BioScope...</div>
+          <div className="text-white/30 text-sm tracking-wider">Loading BioScope</div>
+          <div className="mt-4 w-32 h-1 bg-white/5 rounded-full mx-auto overflow-hidden">
+            <div className="h-full w-1/2 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full animate-[shimmer_1.5s_ease-in-out_infinite]"
+              style={{ animation: "shimmer 1.5s ease-in-out infinite", }}
+            />
+          </div>
         </div>
       </div>
     );
@@ -135,12 +90,18 @@ export default function Home() {
       <Navbar />
       <Hero totalSpecies={totalSpecies} totalObservations={totalObs} totalRegions={regions.length} />
 
-      <div className="max-w-7xl mx-auto px-6 space-y-12 pb-8">
+      <div className="max-w-7xl mx-auto px-6 space-y-16 pb-8">
         {usingMock && (
-          <div className="glass rounded-xl px-4 py-3 border-amber-500/20 bg-amber-500/5 text-center">
-            <span className="text-amber-400 text-sm">
-              Demo mode — showing sample data. Connect the API for live biodiversity data.
-            </span>
+          <div className="glass rounded-xl px-5 py-3.5 border-amber-500/20 bg-amber-500/5 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+              </span>
+              <span className="text-amber-400/80 text-sm">
+                Demo mode — showing sample data. Connect the API for live biodiversity data.
+              </span>
+            </div>
           </div>
         )}
 
@@ -164,22 +125,17 @@ export default function Home() {
             selectedRegion={selectedDetail?.region.region}
           />
           <div className="flex items-center gap-6 mt-4 justify-center">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-emerald-400" />
-              <span className="text-xs text-white/40">High (4+)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-lime-400" />
-              <span className="text-xs text-white/40">Good (3-4)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-amber-400" />
-              <span className="text-xs text-white/40">Moderate (2-3)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-400" />
-              <span className="text-xs text-white/40">Low (&lt;2)</span>
-            </div>
+            {[
+              { color: "bg-emerald-400", label: "High (4+)" },
+              { color: "bg-lime-400", label: "Good (3-4)" },
+              { color: "bg-amber-400", label: "Moderate (2-3)" },
+              { color: "bg-red-400", label: "Low (<2)" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-2">
+                <div className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
+                <span className="text-[11px] text-white/30">{item.label}</span>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -197,12 +153,27 @@ export default function Home() {
             title="Global Trends"
             subtitle="Tracking species diversity across all monitored regions over time"
           />
-          <TrendChart
-            data={globalTrends}
-            title="Species Diversity Over Time"
-            subtitle="Unique species observed per month across all regions"
-            color="#34d399"
-          />
+          <div className="space-y-6">
+            <TrendChart
+              data={globalTrends}
+              title="Species Diversity Over Time"
+              subtitle="Unique species observed per month across all regions"
+              color="#34d399"
+              height={360}
+            />
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <RegionComparisonChart
+                regions={regions}
+                onRegionClick={handleRegionClick}
+                selectedRegion={selectedDetail?.region.region}
+              />
+              <SpeciesDonutChart
+                regions={regions}
+                onRegionClick={handleRegionClick}
+              />
+            </div>
+          </div>
         </section>
 
         <section>
@@ -228,6 +199,7 @@ export default function Home() {
       </div>
 
       <Footer />
+      <ScrollToTop />
     </main>
   );
 }

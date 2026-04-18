@@ -37,8 +37,11 @@ def fetch_observations(place_name: str, per_page: int = 200, pages: int = 5):
             location = obs.get("location")
             lat, lng = (None, None)
             if location:
-                parts = location.split(",")
-                lat, lng = float(parts[0]), float(parts[1])
+                try:
+                    parts = location.split(",")
+                    lat, lng = float(parts[0].strip()), float(parts[1].strip())
+                except (ValueError, IndexError):
+                    lat, lng = None, None
             all_obs.append({
                 "observation_id": obs.get("id"),
                 "species_name": taxon.get("name"),
