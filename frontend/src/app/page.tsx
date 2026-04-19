@@ -22,7 +22,7 @@ export default function Home() {
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
 
   return (
-    <main className="min-h-screen bg-gray-950">
+    <main className="min-h-screen bg-[#080f0b]">
       <Navbar />
       <Hero
         totalSpecies={GLOBAL_STATS.totalSpecies}

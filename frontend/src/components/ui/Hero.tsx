@@ -50,10 +50,11 @@ export default function Hero({ totalSpecies, totalObservations, totalRegions }: 
   return (
     <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
       <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/30 via-gray-950 to-gray-950" />
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-emerald-500/[0.03] rounded-full blur-[120px]" />
-        <div className="absolute top-20 right-1/4 w-[400px] h-[400px] bg-cyan-500/[0.03] rounded-full blur-[100px]" />
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-teal-500/[0.02] rounded-full blur-[120px]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0a1a0f] via-[#080f0b] to-[#080f0b]" />
+        <div className="absolute top-0 left-1/4 w-[700px] h-[700px] bg-emerald-900/20 rounded-full blur-[150px]" />
+        <div className="absolute top-10 right-1/3 w-[500px] h-[500px] bg-green-950/25 rounded-full blur-[130px]" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-emerald-950/15 rounded-full blur-[140px]" />
+        <div className="absolute top-1/3 right-0 w-[300px] h-[600px] bg-amber-950/8 rounded-full blur-[120px]" />
       </div>
 
       <div className="absolute inset-0 overflow-hidden">
@@ -68,7 +69,7 @@ export default function Hero({ totalSpecies, totalObservations, totalRegions }: 
                 height: size,
                 left: `${(i * 2.5) % 100}%`,
                 top: `${(i * 7.3) % 100}%`,
-                backgroundColor: i % 3 === 0 ? "rgba(52,211,153,0.3)" : i % 3 === 1 ? "rgba(34,211,238,0.2)" : "rgba(167,139,250,0.15)",
+                backgroundColor: i % 3 === 0 ? "rgba(52,211,153,0.25)" : i % 3 === 1 ? "rgba(74,222,128,0.15)" : "rgba(163,160,100,0.12)",
               }}
               animate={{
                 opacity: [0, 1, 0],
@@ -86,10 +87,10 @@ export default function Hero({ totalSpecies, totalObservations, totalRegions }: 
         })}
       </div>
 
-      <div className="absolute inset-0 opacity-[0.015]"
+      <div className="absolute inset-0 opacity-[0.02]"
         style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 0)`,
-          backgroundSize: "40px 40px",
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(52,211,153,0.5) 0.5px, transparent 0)`,
+          backgroundSize: "32px 32px",
         }}
       />
 
@@ -114,7 +115,7 @@ export default function Hero({ totalSpecies, totalObservations, totalRegions }: 
 
           <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-6 leading-[1.05]">
             Understand{" "}
-            <span className="gradient-text animated-gradient bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
+            <span className="gradient-text animated-gradient bg-gradient-to-r from-emerald-400 via-green-300 to-emerald-500">
               Biodiversity
             </span>
             <br />
