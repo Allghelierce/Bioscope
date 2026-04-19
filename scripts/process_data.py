@@ -2,9 +2,10 @@ import csv
 import json
 import math
 import os
+import random
 from collections import Counter, defaultdict
 
-INPUT = "data/threatened_species.csv"
+INPUT_DIR = "data"
 OUTPUT = "frontend/src/lib/speciesData.ts"
 
 TROPHIC_MAP = {
@@ -17,11 +18,16 @@ TROPHIC_MAP = {
     "Reptilia": {"level": "secondary_consumer", "label": "Secondary Consumers", "order": 2},
     "Mammalia": {"level": "tertiary_consumer", "label": "Tertiary Consumers", "order": 3},
     "Aves": {"level": "tertiary_consumer", "label": "Tertiary Consumers", "order": 3},
-    "Animalia": {"level": "primary_consumer", "label": "Primary Consumers", "order": 1},
+    "Animalia": {"level": "secondary_consumer", "label": "Secondary Consumers", "order": 2},
 }
 
 POLLINATOR_ORDERS = {"Lepidoptera", "Hymenoptera"}
 PREDATOR_ORDERS = {"Accipitriformes", "Falconiformes", "Strigiformes", "Carnivora", "Squamata"}
+SECONDARY_ORDERS = {"Rajiformes", "Myliobatiformes", "Perciformes", "Scorpaeniformes",
+                    "Pleuronectiformes", "Tetraodontiformes", "Siluriformes",
+                    "Coleoptera", "Orthoptera", "Hemiptera", "Odonata", "Mantodea"}
+TERTIARY_ORDERS = {"Lamniformes", "Carcharhiniformes", "Pelecaniformes", "Suliformes",
+                   "Charadriiformes", "Anseriformes"}
 
 DEPENDENCY_CHAINS = [
     {"from": "producer", "to": "primary_consumer", "label": "food source"},
@@ -115,6 +121,43 @@ ECOSYSTEM_TYPES = {
     },
 }
 
+HABITAT_MAP = {
+    "Plantae": "terrestrial",
+    "Fungi": "terrestrial",
+    "Insecta": "terrestrial",
+    "Arachnida": "terrestrial",
+    "Mammalia": "terrestrial",
+    "Aves": "terrestrial",
+    "Reptilia": "terrestrial",
+    "Amphibia": "freshwater",
+    "Actinopterygii": "aquatic",
+    "Mollusca": "aquatic",
+    "Animalia": "unknown",
+}
+
+MARINE_ORDERS = {
+    "Myliobatiformes", "Lamniformes", "Carcharhiniformes", "Squatiniformes",
+    "Rajiformes", "Synallactida", "Perciformes", "Scorpaeniformes",
+}
+MARINE_FAMILIES = {
+    "Stichopodidae", "Haliotidae", "Dasyatidae", "Alopiidae", "Triakidae",
+    "Squatinidae", "Rhinobatidae",
+}
+
+def get_habitat(iconic, order, family):
+    if order in MARINE_ORDERS or family in MARINE_FAMILIES:
+        return "marine"
+    return HABITAT_MAP.get(iconic, "unknown")
+
+def habitats_compatible(h1, h2):
+    if h1 == "unknown" or h2 == "unknown":
+        return True
+    if h1 == h2:
+        return True
+    if {h1, h2} == {"freshwater", "terrestrial"}:
+        return True
+    return False
+
 ZONE_NAME_TO_COORDS = {}  # populated after ZONE_NAMES
 
 ZONE_NAMES = {
@@ -138,11 +181,29 @@ ZONE_NAMES = {
 for (r, c), name in ZONE_NAMES.items():
     ZONE_NAME_TO_COORDS[name] = (r, c)
 
-with open(INPUT) as f:
-    reader = csv.DictReader(f)
-    rows = list(reader)
+import glob
 
-print(f"Loaded {len(rows)} observations")
+csv_files = glob.glob(os.path.join(INPUT_DIR, "*.csv"))
+# Also check for nested CSV dirs (like observations-711984.csv/)
+for entry in glob.glob("observations-*.csv"):
+    nested = glob.glob(os.path.join(entry, "*.csv"))
+    csv_files.extend(nested)
+
+rows = []
+seen_ids = set()
+for csv_file in csv_files:
+    print(f"Reading {csv_file}...")
+    with open(csv_file) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            obs_id = row.get("id", "")
+            if obs_id and obs_id in seen_ids:
+                continue
+            if obs_id:
+                seen_ids.add(obs_id)
+            rows.append(row)
+
+print(f"Loaded {len(rows)} observations from {len(csv_files)} files ({len(seen_ids)} unique IDs)")
 
 def get_zone(lat, lng):
     r = int((lat - LAT_MIN) / (LAT_MAX - LAT_MIN) * GRID_ROWS)
@@ -156,6 +217,10 @@ def get_trophic(iconic, order):
         return "pollinator", "Pollinators", 1.5
     if order in PREDATOR_ORDERS:
         return "apex_predator", "Apex Predators", 4
+    if order in TERTIARY_ORDERS:
+        return "tertiary_consumer", "Tertiary Consumers", 3
+    if order in SECONDARY_ORDERS:
+        return "secondary_consumer", "Secondary Consumers", 2
     info = TROPHIC_MAP.get(iconic, {"level": "unknown", "label": "Unknown", "order": -1})
     return info["level"], info["label"], info["order"]
 
@@ -356,19 +421,20 @@ top_species_set = set()
 for level, sps in all_by_level.items():
     for sp in sps[:MIN_PER_LEVEL]:
         top_species_set.add(sp["scientific_name"])
-# Then fill remaining slots from top by observation count
+# Include ALL species — we have 505, enough for rich ecosystem variation
 all_sorted = sorted(all_species.values(), key=lambda s: species_observations[s["scientific_name"]], reverse=True)
 for sp in all_sorted:
-    if len(top_species_set) >= 250:
-        break
     top_species_set.add(sp["scientific_name"])
 
 top_species = [all_species[sid] for sid in top_species_set]
 top_species.sort(key=lambda s: species_observations[s["scientific_name"]], reverse=True)
 top_species_ids = {sp["scientific_name"] for sp in top_species}
 
+species_habitat = {}
 for sp in top_species:
     sid = sp["scientific_name"]
+    habitat = get_habitat(sp["iconic_taxon"], sp["order"], sp["family"])
+    species_habitat[sid] = habitat
     dependency_nodes.append({
         "id": sid,
         "common_name": sp["common_name"],
@@ -386,51 +452,178 @@ node_by_level = defaultdict(list)
 for node in dependency_nodes:
     node_by_level[node["trophic_level"]].append(node)
 
-# Build edges with realistic specialization:
-# - Species with narrow ranges (few zones) are specialists → 1 food source
-# - Species with medium ranges → 2 food sources
-# - Widespread species → 3 food sources
-# This creates natural vulnerability: narrow-range species cascade easily
+# ─── GloBI: fetch real species interactions ───
+import urllib.request
+import urllib.parse
+import time as _time
+
+GLOBI_CACHE_FILE = "data/globi_cache.json"
+GLOBI_INTERACTION_MAP = {
+    "eats": "food source",
+    "preysOn": "prey",
+    "pollinates": "pollination",
+    "parasiteOf": "parasitism",
+    "interactsWith": "food source",
+    "hasHost": "parasitism",
+    "flowersVisitedBy": "pollination",
+    "visitedBy": "pollination",
+}
+
+def load_globi_cache():
+    if os.path.exists(GLOBI_CACHE_FILE):
+        with open(GLOBI_CACHE_FILE) as f:
+            return json.load(f)
+    return {}
+
+def save_globi_cache(cache):
+    os.makedirs(os.path.dirname(GLOBI_CACHE_FILE), exist_ok=True)
+    with open(GLOBI_CACHE_FILE, "w") as f:
+        json.dump(cache, f)
+
+def query_globi(taxon_name, cache):
+    if taxon_name in cache:
+        return cache[taxon_name]
+
+    encoded = urllib.parse.quote(taxon_name)
+    url = f"https://api.globalbioticinteractions.org/interaction?sourceTaxon={encoded}&type=json&limit=50"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "BioScope/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        interactions = []
+        for row in data.get("data", []):
+            if len(row) >= 4:
+                interaction_type = row[1] if len(row) > 1 else ""
+                target_name = row[2] if len(row) > 2 else ""
+                if target_name and interaction_type:
+                    interactions.append({
+                        "target": target_name,
+                        "type": interaction_type,
+                    })
+        cache[taxon_name] = interactions
+        return interactions
+    except Exception as e:
+        print(f"    GloBI error for {taxon_name}: {e}")
+        cache[taxon_name] = []
+        return []
+
+print("\n─── Fetching GloBI interactions ───")
+globi_cache = load_globi_cache()
+cached_count = sum(1 for sid in top_species_ids if sid in globi_cache)
+to_fetch = [sid for sid in top_species_ids if sid not in globi_cache]
+print(f"  {cached_count} cached, {len(to_fetch)} to fetch")
+
+globi_edges = []
+globi_species_with_edges = set()
+
+for i, sid in enumerate(to_fetch):
+    if i > 0 and i % 10 == 0:
+        print(f"  Fetched {i}/{len(to_fetch)}...")
+    interactions = query_globi(sid, globi_cache)
+    if i % 50 == 0:
+        save_globi_cache(globi_cache)
+    _time.sleep(0.15)
+
+save_globi_cache(globi_cache)
+
+for sid in top_species_ids:
+    interactions = globi_cache.get(sid, [])
+    for inter in interactions:
+        target = inter["target"]
+        itype = inter["type"]
+        edge_type = GLOBI_INTERACTION_MAP.get(itype)
+        if not edge_type:
+            continue
+        if target in top_species_ids and target != sid:
+            sid_habitat = species_habitat.get(sid, "unknown")
+            target_habitat = species_habitat.get(target, "unknown")
+            if not habitats_compatible(sid_habitat, target_habitat):
+                continue
+            overlap = len(species_zones[sid] & species_zones[target])
+            strength = round(overlap / max(len(species_zones[target]), 1), 2) if overlap > 0 else 0.5
+            globi_edges.append({
+                "source": sid,
+                "target": target,
+                "type": edge_type,
+                "strength": max(strength, 0.3),
+            })
+            globi_species_with_edges.add(sid)
+            globi_species_with_edges.add(target)
+
+# Deduplicate GloBI edges
+seen_edges = set()
+for e in globi_edges:
+    key = (e["source"], e["target"], e["type"])
+    if key not in seen_edges:
+        seen_edges.add(key)
+        dependency_edges.append(e)
+
+print(f"  GloBI: {len(seen_edges)} real edges from {len(globi_species_with_edges)} species")
+
+# ─── Synthetic fallback for species without GloBI data ───
+print("\nBuilding synthetic edges for species without GloBI data...")
+synthetic_count = 0
+MAX_INCOMING = 5
+MAX_OUTGOING = 8
+
+outgoing_count = defaultdict(int)
+for e in dependency_edges:
+    outgoing_count[e["source"]] += 1
 
 for chain in DEPENDENCY_CHAINS:
     from_nodes = node_by_level.get(chain["from"], [])
     to_nodes = node_by_level.get(chain["to"], [])
 
     for tn in to_nodes:
+        existing_sources = {e["source"] for e in dependency_edges if e["target"] == tn["id"]}
+        if len(existing_sources) >= MAX_INCOMING:
+            continue
+
         tn_zones = species_zones[tn["id"]]
         if not tn_zones:
             continue
 
         zone_count = len(tn_zones)
-        if zone_count <= 10:
-            max_src = 1
-        elif zone_count <= 25:
-            max_src = 2
-        else:
-            max_src = 3
+        need = max(0, MAX_INCOMING - len(existing_sources))
 
+        tn_habitat = species_habitat.get(tn["id"], "unknown")
+        tn_family = all_species.get(tn["id"], {}).get("family", "")
         candidates = []
         for fn in from_nodes:
-            if fn["id"] == tn["id"]:
+            if fn["id"] == tn["id"] or fn["id"] in existing_sources:
+                continue
+            if outgoing_count[fn["id"]] >= MAX_OUTGOING:
+                continue
+            fn_habitat = species_habitat.get(fn["id"], "unknown")
+            if not habitats_compatible(fn_habitat, tn_habitat):
                 continue
             fn_zones = species_zones[fn["id"]]
             overlap = len(fn_zones & tn_zones)
-            if overlap > 0:
-                strength = round(overlap / max(zone_count, 1), 2)
-                candidates.append((fn, strength, overlap))
+            zone_score = overlap / max(zone_count, 1) if overlap > 0 else 0.1
+            family_bonus = 0.3 if all_species.get(fn["id"], {}).get("family", "") == tn_family else 0
+            score = round(zone_score + family_bonus, 2)
+            candidates.append((fn, score, overlap))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
-        for fn, strength, overlap in candidates[:max_src]:
-            dependency_edges.append({
-                "source": fn["id"],
-                "target": tn["id"],
-                "type": chain["label"],
-                "strength": strength,
-            })
+        for fn, score, overlap in candidates[:need]:
+            edge_key = (fn["id"], tn["id"], chain["label"])
+            if edge_key not in seen_edges:
+                seen_edges.add(edge_key)
+                dependency_edges.append({
+                    "source": fn["id"],
+                    "target": tn["id"],
+                    "type": chain["label"],
+                    "strength": min(score, 1.0),
+                })
+                outgoing_count[fn["id"]] += 1
+                synthetic_count += 1
+
+print(f"  Synthetic fallback: {synthetic_count} edges added")
+print(f"  Total edges: {len(dependency_edges)}")
 
 
 # ─── Keystone score computation ───
-def compute_cascade_victims(removed_id, nodes, edges, threshold=0.4):
+def compute_cascade_victims(removed_id, nodes, edges, threshold=0.6):
     """Cascade with strength-weighted dependency.
     A species collapses if surviving food sources provide less than threshold
     of its original total incoming strength."""
@@ -615,27 +808,45 @@ for eco_name, eco_info in ECOSYSTEM_TYPES.items():
         if zk in zones:
             eco_species.update(zones[zk]["species"])
 
-    # Intersect with our 150-species dependency graph, cap at 30 for performance
     eco_node_ids = top_species_ids & eco_species
     if len(eco_node_ids) < 3:
         continue
 
-    # If too many, pick top 150: ensure trophic balance then fill by observation count
-    if len(eco_node_ids) > 150:
+    # Cap at random 150-200: prioritize species with most observations in THIS ecosystem's zones
+    eco_cap = 175
+    if len(eco_node_ids) > eco_cap:
+        # Count observations per species within this ecosystem's zones
+        eco_obs = Counter()
+        for zk in eco_zone_keys:
+            if zk in zones:
+                for row_data in zones[zk]["observations"] if "observations" in zones[zk] else []:
+                    pass
+        # Use zone overlap + observation count to rank species by ecosystem relevance
         eco_by_level = defaultdict(list)
         for nid in eco_node_ids:
             node = next(n for n in dependency_nodes if n["id"] == nid)
-            eco_by_level[node["trophic_level"]].append((nid, node["observations"]))
+            # Score: observation count weighted by how many of THIS ecosystem's zones the species appears in
+            sp_zones = species_zones[nid]
+            eco_zone_set = set(eco_zone_keys)
+            overlap = len(sp_zones & eco_zone_set)
+            relevance = node["observations"] * (1 + overlap * 2)
+            eco_by_level[node["trophic_level"]].append((nid, relevance))
         for lv in eco_by_level:
             eco_by_level[lv].sort(key=lambda x: x[1], reverse=True)
+        # Guarantee trophic balance: top 8 per level
         kept = set()
         for lv, sps in eco_by_level.items():
-            for sp_id, _ in sps[:5]:
+            for sp_id, _ in sps[:8]:
                 kept.add(sp_id)
-        remaining = [(nid, next(n["observations"] for n in dependency_nodes if n["id"] == nid)) for nid in eco_node_ids - kept]
-        remaining.sort(key=lambda x: x[1], reverse=True)
-        for nid, _ in remaining:
-            if len(kept) >= 150:
+        # Fill remaining by relevance score
+        all_ranked = []
+        for lv, sps in eco_by_level.items():
+            for sp_id, score in sps:
+                if sp_id not in kept:
+                    all_ranked.append((sp_id, score))
+        all_ranked.sort(key=lambda x: x[1], reverse=True)
+        for nid, _ in all_ranked:
+            if len(kept) >= eco_cap:
                 break
             kept.add(nid)
         eco_node_ids = kept
@@ -786,7 +997,7 @@ with open("frontend/public/data/ecosystem-graphs.json", "w") as f:
 print("Wrote frontend/public/data/ecosystem-graphs.json")
 
 # 2. Lightweight TypeScript Bridge (Only types and tiny constants)
-ts_output = f'''// Auto-generated types and metadata from {INPUT}
+ts_output = f'''// Auto-generated types and metadata from {INPUT_DIR}
 // Source data is fetched from /data/app-data.json to keep bundle size small.
 
 import ecosystemData from "./ecosystemIndex.json";

@@ -80,13 +80,13 @@ interface Props {
 }
 
 const LEVEL_COLORS: Record<string, string> = {
-  producer: "#6ee7b7",
-  pollinator: "#fda4af",
+  producer: "#34d399",
+  pollinator: "#f9a8d4",
   primary_consumer: "#fcd34d",
-  secondary_consumer: "#67e8f9",
-  tertiary_consumer: "#a5b4fc",
-  apex_predator: "#fca5a5",
-  decomposer: "#c4b5fd",
+  secondary_consumer: "#38bdf8",
+  tertiary_consumer: "#818cf8",
+  apex_predator: "#f87171",
+  decomposer: "#a78bfa",
 };
 
 const EDGE_COLORS: Record<string, string> = {
@@ -157,6 +157,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
   const [aiLoading, setAiLoading] = useState(false);
   const [removalLog, setRemovalLog] = useState<RemovalLogEntry[]>([]);
   const [showReport, setShowReport] = useState(false);
+  const [showRemovalLog, setShowRemovalLog] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedEcosystem, setSelectedEcosystem] = useState<string | null>(ecosystem ?? null);
   const [ecoSearchQuery, setEcoSearchQuery] = useState("");
@@ -290,13 +291,17 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
 
   const getCascadeVictims = useCallback((removedId: string): Set<string> => {
     const victims = new Set<string>();
+    const gone = new Set([removedId, ...Array.from(removedNodes)]);
     const queue = [removedId];
     while (queue.length > 0) {
       const current = queue.shift()!;
       for (const edge of graphEdges) {
-        if (edge.source === current && !victims.has(edge.target) && !removedNodes.has(edge.target)) {
-          const altSources = graphEdges.filter((e) => e.target === edge.target && e.source !== current).map((e) => e.source).filter((s) => !removedNodes.has(s) && s !== removedId && !victims.has(s));
-          if (altSources.length === 0) { victims.add(edge.target); queue.push(edge.target); }
+        if (edge.source === current && !victims.has(edge.target) && !gone.has(edge.target)) {
+          const totalSources = graphEdges.filter((e) => e.target === edge.target).map((e) => e.source);
+          const remaining = totalSources.filter((s) => !gone.has(s) && !victims.has(s));
+          if (remaining.length <= Math.floor(totalSources.length * 0.5)) {
+            victims.add(edge.target); gone.add(edge.target); queue.push(edge.target);
+          }
         }
       }
     }
@@ -307,14 +312,16 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     const tree = new Map<string, string[]>();
     tree.set(removedId, []);
     const victims = new Set<string>();
+    const gone = new Set([removedId, ...Array.from(removedNodes)]);
     const queue = [removedId];
     while (queue.length > 0) {
       const current = queue.shift()!;
       for (const edge of graphEdges) {
-        if (edge.source === current && !victims.has(edge.target) && !removedNodes.has(edge.target)) {
-          const altSources = graphEdges.filter((e) => e.target === edge.target && e.source !== current).map((e) => e.source).filter((s) => !removedNodes.has(s) && s !== removedId && !victims.has(s));
-          if (altSources.length === 0) {
-            victims.add(edge.target);
+        if (edge.source === current && !victims.has(edge.target) && !gone.has(edge.target)) {
+          const totalSources = graphEdges.filter((e) => e.target === edge.target).map((e) => e.source);
+          const remaining = totalSources.filter((s) => !gone.has(s) && !victims.has(s));
+          if (remaining.length <= Math.floor(totalSources.length * 0.5)) {
+            victims.add(edge.target); gone.add(edge.target);
             if (!tree.has(current)) tree.set(current, []);
             tree.get(current)!.push(edge.target);
             queue.push(edge.target);
@@ -654,6 +661,28 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     const trophicLevelsHit = Array.from(new Set(victims.map((v) => v.trophic_level)));
     const victimSummary = victims.slice(0, 8).map((v) => `${v.common_name || v.id} (${v.trophic_level.replace(/_/g, " ")})`).join(", ");
     const ecoName = selectedEcosystem || zone?.name || "San Diego County";
+
+    // Try Snowflake Cortex first
+    try {
+      const params = new URLSearchParams({
+        action: "cascade_interpret",
+        species: removed.common_name || removed.id,
+        keystone_score: String(removed.keystone_score || 0),
+        victim_count: String(totalCollapsed - 1),
+        trophic_hit: String(trophicLevelsHit.length),
+        ecosystem: ecoName,
+      });
+      const res = await fetch(`/api/snowflake?${params}`);
+      const data = await res.json();
+      if (data.analysis) {
+        setAiInterpretation(data.analysis);
+        setAiLoading(false);
+        logRemoval(removed, victims, totalCollapsed, totalSpecies, data.analysis);
+        return;
+      }
+    } catch { /* fall through to Gemini */ }
+
+    // Fallback to Gemini
     const prompt = `You are a conservation ecologist. A cascade simulation removed "${removed.common_name || removed.id}" (${removed.trophic_level.replace(/_/g, " ")}, ${removed.observations} observations) from the ${ecoName} food web. This caused ${totalCollapsed - 1} additional species to collapse (${impactPct}% of the ecosystem), affecting trophic levels: ${trophicLevelsHit.join(", ")}. Collapsed species include: ${victimSummary}${victims.length > 8 ? ` and ${victims.length - 8} more` : ""}. Write a 2-3 sentence ecological impact assessment. Be specific about ecological functions lost and real-world consequences. End with one concrete conservation action. No headers or bullets, just flowing text.`;
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (apiKey) {
@@ -664,6 +693,8 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
         if (text) { setAiInterpretation(text); setAiLoading(false); logRemoval(removed, victims, totalCollapsed, totalSpecies, text); return; }
       } catch { /* fallback */ }
     }
+
+    // Static fallback
     const roleMap: Record<string, string> = { producer: "primary production", pollinator: "pollination services", primary_consumer: "herbivore energy transfer", secondary_consumer: "mid-level predation", tertiary_consumer: "upper food chain regulation", apex_predator: "top-down population control", decomposer: "nutrient recycling" };
     const lostFunctions = trophicLevelsHit.map((l) => roleMap[l] || l.replace(/_/g, " ")).join(", ");
     const fallbackText = `Removing ${removed.common_name || removed.id} from ${ecoName}'s ecosystem triggers a cascade collapse affecting ${totalCollapsed - 1} species across ${trophicLevelsHit.length} trophic level${trophicLevelsHit.length > 1 ? "s" : ""}, representing ${impactPct}% of the local food web. The loss eliminates critical ecological functions including ${lostFunctions}. Priority action: establish protected habitat corridors for ${removed.common_name || removed.id} populations in ${ecoName}.`;
@@ -695,7 +726,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     const sLinks: SimLink[] = graphEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => ({ source: nodeMap.get(e.source)!, target: nodeMap.get(e.target)!, edgeType: e.type })).filter((l) => l.source && l.target);
     
     const trophicGroups = Object.keys(TROPHIC_LAYERS);
-    const clusterRadius = Math.min(dims.w, dims.h) * 0.38;
+    const clusterRadius = Math.min(dims.w, dims.h) * 0.42;
     const clusterCenters: Record<string, { x: number; y: number }> = {};
     trophicGroups.forEach((g, i) => {
       const angle = (2 * Math.PI * i) / trophicGroups.length - Math.PI / 2;
@@ -703,11 +734,11 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     });
 
     const sim = forceSimulation<SimNode>(sNodes)
-      .force("link", forceLink<SimNode, SimLink>(sLinks).id((d) => d.data.id).distance(50).strength(0.03))
-      .force("charge", forceManyBody<SimNode>().strength(-80).distanceMax(200))
-      .force("collide", forceCollide<SimNode>().radius((d) => d.radius + 10).strength(0.9).iterations(3))
-      .force("x", forceX<SimNode>((d) => (clusterCenters[d.data.trophic_level] ?? { x: dims.w / 2 }).x).strength(0.35))
-      .force("y", forceY<SimNode>((d) => (clusterCenters[d.data.trophic_level] ?? { y: dims.h / 2 }).y).strength(0.35))
+      .force("link", forceLink<SimNode, SimLink>(sLinks).id((d) => d.data.id).distance(40).strength(0.02))
+      .force("charge", forceManyBody<SimNode>().strength(-100).distanceMax(180))
+      .force("collide", forceCollide<SimNode>().radius((d) => d.radius + 8).strength(1.0).iterations(4))
+      .force("x", forceX<SimNode>((d) => (clusterCenters[d.data.trophic_level] ?? { x: dims.w / 2 }).x).strength(0.6))
+      .force("y", forceY<SimNode>((d) => (clusterCenters[d.data.trophic_level] ?? { y: dims.h / 2 }).y).strength(0.6))
       .alphaDecay(0.03).velocityDecay(0.4);
 
     const drag = d3Drag<any, SimNode>()
@@ -816,6 +847,17 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     return s;
   }, [hoveredNode, selectedNode, simLinks]);
 
+  const dynamicKeystoneScores = useMemo(() => {
+    const scores = new Map<string, number>();
+    const activeNodes = graphNodes.filter((n) => !removedNodes.has(n.id));
+    if (activeNodes.length === 0) return scores;
+    for (const node of activeNodes) {
+      const victims = getCascadeVictims(node.id);
+      scores.set(node.id, victims.size / activeNodes.length);
+    }
+    return scores;
+  }, [graphNodes, removedNodes, getCascadeVictims]);
+
   const activeId = hoveredNode ?? selectedNode;
   const selectedData = selectedNode ? graphNodes.find((n) => n.id === selectedNode) ?? null : null;
   const selectedCascadeCount = selectedNode ? getCascadeVictims(selectedNode).size : 0;
@@ -899,9 +941,9 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
 
       {selectedEcosystem && currentEco && !showEcoBrowser && (
         <div className="flex items-center gap-3 mb-4 px-3 py-2 rounded-lg border border-emerald-500/10" style={{ background: "rgba(16,70,32,0.08)" }}>
-          <span className="text-lg">{ECO_ICONS[selectedEcosystem] || "\ud83c\udf3f"}</span>
-          <div className="flex-1 min-w-0"><div className="text-sm font-medium text-white/70">{selectedEcosystem}</div><div className="text-[10px] text-white/30 truncate">{currentEco.description}</div></div>
-          <div className="text-[10px] text-white/30">{currentEco.zones.length} zones · {currentEco.species_count} species</div>
+          <span className="text-2xl">{ECO_ICONS[selectedEcosystem] || "\ud83c\udf3f"}</span>
+          <div className="flex-1 min-w-0"><div className="text-base font-medium text-white/70">{selectedEcosystem}</div><div className="text-sm text-white/30 truncate">{currentEco.description}</div></div>
+          <div className="text-sm text-white/30">{currentEco.zones.length} zones · {currentEco.species_count} species</div>
           <button onClick={() => { setSelectedEcosystem(null); setShowEcoBrowser(true); }} className="text-white/30 hover:text-white/60 text-sm shrink-0">×</button>
         </div>
       )}
@@ -909,13 +951,13 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
       {(!showEcoBrowser || zone) && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
           <div className="relative flex-1 max-w-xs">
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search species..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/25" />
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search species..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-base text-white placeholder-white/30 focus:outline-none focus:border-white/25" />
             {searchQuery && <button onClick={() => { setSearchQuery(""); setSelectedNode(null); if (svgRef.current) select(svgRef.current).transition().duration(400).call(zoomBehavior.transform as any, zoomIdentity); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">×</button>}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             {Object.entries(LEVEL_COLORS).map(([level, color]) => {
               const active = activeTrophicFilters.has(level);
-              return (<button key={level} onClick={() => toggleFilter(level)} className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] transition border ${active ? "border-white/15 bg-white/5" : "border-transparent bg-white/[0.02] opacity-40"}`}><div className="w-2 h-2 rounded-full" style={{ backgroundColor: active ? color : color + "40" }} /><span className="text-white/50 capitalize hidden sm:inline">{level.replace("_", " ")}</span></button>);
+              return (<button key={level} onClick={() => toggleFilter(level)} className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition border ${active ? "border-white/15 bg-white/5" : "border-transparent bg-white/[0.02] opacity-40"}`}><div className="w-2 h-2 rounded-full" style={{ backgroundColor: active ? color : color + "40" }} /><span className="text-white/50 capitalize hidden sm:inline">{level.replace("_", " ")}</span></button>);
             })}
           </div>
         </div>
@@ -923,7 +965,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
 
       {(!showEcoBrowser || zone) && !isFullscreen && (
         <div className="flex items-center justify-center gap-4 mb-3">
-          {Object.entries(EDGE_COLORS_BRIGHT).map(([type, color]) => (<div key={type} className="flex items-center gap-1.5"><div className="w-4 h-0.5 rounded" style={{ backgroundColor: color }} /><span className="text-[10px] text-white/30 capitalize">{type}</span></div>))}
+          {Object.entries(EDGE_COLORS_BRIGHT).map(([type, color]) => (<div key={type} className="flex items-center gap-1.5"><div className="w-4 h-0.5 rounded" style={{ backgroundColor: color }} /><span className="text-sm text-white/30 capitalize">{type}</span></div>))}
         </div>
       )}
 
@@ -984,14 +1026,25 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
               {Object.keys(TROPHIC_LAYERS).map((level, i) => {
                 const trophicKeys = Object.keys(TROPHIC_LAYERS);
                 const angle = (2 * Math.PI * i) / trophicKeys.length - Math.PI / 2;
-                const cr = Math.min(dims.w, dims.h) * 0.45;
-                const lx = dims.w / 2 + Math.cos(angle) * (cr * 1.85);
-                const ly = dims.h / 2 + Math.sin(angle) * (cr * 1.85);
+                const cr = Math.min(dims.w, dims.h) * 0.42;
+                const cx = dims.w / 2 + Math.cos(angle) * cr;
+                const cy = dims.h / 2 + Math.sin(angle) * cr;
+                const groupNodes = simNodes.filter((n) => n.data.trophic_level === level);
+                let maxDist = 0;
+                for (const n of groupNodes) {
+                  if (n.x != null && n.y != null) {
+                    const d = Math.sqrt((n.x - cx) ** 2 + (n.y - cy) ** 2) + n.radius;
+                    if (d > maxDist) maxDist = d;
+                  }
+                }
+                const labelDist = cr + Math.max(maxDist, 80) + 30;
+                const lx = dims.w / 2 + Math.cos(angle) * labelDist;
+                const ly = dims.h / 2 + Math.sin(angle) * labelDist;
                 const label = level.replace(/_/g, " ");
                 const color = LEVEL_COLORS[level] || "#666";
                 return (
                   <g key={`cluster-${level}`} pointerEvents="none">
-                    <text x={lx} y={ly + 4} fill={color} fontSize={14} opacity={0.25} textAnchor="middle" fontWeight="800" style={{ textTransform: "uppercase", letterSpacing: "0.2em", paintOrder: "stroke", stroke: "rgba(6,10,7,0.4)", strokeWidth: 4 }}>{label}</text>
+                    <text x={lx} y={ly + 4} fill={color} fontSize={11} opacity={0.35} textAnchor="middle" fontWeight="700" style={{ textTransform: "uppercase", letterSpacing: "0.15em" }}>{label}</text>
                   </g>
                 );
               })}
@@ -1035,7 +1088,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                 const isConnected = connectedTo.has(node.data.id); const isCascadeVictim = cascadeVictims.has(node.data.id);
                 const isAnimVictim = animatedVictims.has(node.data.id);
                 const dimmed = activeId && !isHovered && !isSelected && !isConnected && !isCascadeVictim;
-                const isKeystone = (node.data.zone_keystone_score ?? node.data.keystone_score ?? 0) > 0.01;
+                const isKeystone = (dynamicKeystoneScores.get(node.data.id) ?? 0) > 0.01;
                 const r = isHovered || isSelected ? node.radius + 6 : node.radius + 2;
                 let rippleX = 0, rippleY = 0;
                 if (hNode && !isHovered) {
@@ -1101,7 +1154,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                     })()}
                     {(isCascadeVictim || isAnimVictim) && <text x={bx} y={by + r * 0.35} textAnchor="middle" fill="#ef4444" fontSize={r * 1.4} fontWeight="bold" style={{ pointerEvents: "none" }}>{"\u00d7"}</text>}
                     {isKeystone && !dimmed && !isCascadeVictim && <text x={bx} y={by - r - 10} textAnchor="middle" fill="#ef4444" fontSize={13} opacity={0.9} style={{ pointerEvents: "none" }}>★</text>}
-                    {(isHovered || isSelected) && <text x={bx} y={by + r + 12} textAnchor="middle" fill={isCascadeVictim ? "rgba(239,68,68,0.6)" : isKeystone ? "rgba(239,68,68,0.7)" : "#fff"} fontSize={10} fontWeight="600" letterSpacing="0.01em" paintOrder="stroke" stroke="rgba(6,10,7,0.9)" strokeWidth={4} style={{ textDecoration: isCascadeVictim ? "line-through" : "none" }}>{node.data.common_name || node.data.id}</text>}
+                    {(isHovered || isSelected) && <text x={bx} y={by + r + 12} textAnchor="middle" fill={isCascadeVictim ? "rgba(239,68,68,0.6)" : isKeystone ? "rgba(239,68,68,0.7)" : "#fff"} fontSize={14} fontWeight="600" letterSpacing="0.01em" paintOrder="stroke" stroke="rgba(6,10,7,0.9)" strokeWidth={4} style={{ textDecoration: isCascadeVictim ? "line-through" : "none" }}>{node.data.common_name || node.data.id}</text>}
                     </g>
                   </g>
                 );
@@ -1120,8 +1173,8 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                   <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Observations</div><div className="text-sm font-semibold text-white">{selectedData.observations.toLocaleString()}</div></div>
                   {selectedData.zone_count != null && <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Zones</div><div className="text-sm font-semibold text-white">{selectedData.zone_count}</div></div>}
                   <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Trophic Level</div><div className="text-sm font-semibold capitalize" style={{ color: LEVEL_COLORS[selectedData.trophic_level] }}>{selectedData.trophic_level.replace("_", " ")}</div></div>
-                  <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Keystone</div><div className={`text-sm font-semibold ${((selectedData.zone_keystone_score ?? selectedData.keystone_score) ?? 0) > 0.01 ? "text-orange-400" : "text-white/60"}`}>{(((selectedData.zone_keystone_score ?? selectedData.keystone_score) ?? 0) * 100).toFixed(1)}%</div></div>
-                  <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">YoY Trend</div><div className={`text-sm font-semibold ${selectedData.decline_trend < -30 ? "text-red-400" : selectedData.decline_trend < 0 ? "text-orange-400" : "text-emerald-400"}`}>{selectedData.decline_trend > 0 ? "+" : ""}{selectedData.decline_trend.toFixed(1)}%</div></div>
+                  <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Keystone</div><div className={`text-sm font-semibold ${(dynamicKeystoneScores.get(selectedData.id) ?? 0) > 0.01 ? "text-orange-400" : "text-white/60"}`}>{((dynamicKeystoneScores.get(selectedData.id) ?? 0) * 100).toFixed(1)}%</div></div>
+                  <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Observation Trend</div><div className={`text-sm font-semibold ${selectedData.decline_trend < -30 ? "text-red-400" : selectedData.decline_trend < 0 ? "text-orange-400" : "text-emerald-400"}`}>{selectedData.decline_trend > 0 ? "+" : ""}{selectedData.decline_trend.toFixed(1)}%</div><div className="text-[8px] text-white/20 mt-0.5">first vs last recorded year</div></div>
                   <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Cascade</div><div className={`text-sm font-semibold ${selectedCascadePct > 30 ? "text-red-400" : selectedCascadePct > 15 ? "text-orange-400" : "text-emerald-400"}`}>{selectedCascadePct.toFixed(1)}%</div></div>
                 </div>
                 {selectedData.family && <div className="text-xs text-white/40 mb-3">{selectedData.family} · {selectedData.order}</div>}
@@ -1155,13 +1208,17 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
             )}
           </AnimatePresence>
           {removalLog.length > 0 && (
-            <div className="absolute top-4 right-4 z-10 w-56 max-h-[60%] overflow-y-auto border border-white/[0.06] rounded-xl backdrop-blur-xl" style={{ background: "rgba(6,10,7,0.92)" }}>
-              <div className="p-3 border-b border-white/[0.06]">
+            <div className="absolute top-4 left-4 z-10 w-56 border border-white/[0.06] rounded-xl backdrop-blur-xl" style={{ background: "rgba(6,10,7,0.92)" }}>
+              <button onClick={() => setShowRemovalLog((v) => !v)} className="w-full p-3 border-b border-white/[0.06] cursor-pointer hover:bg-white/[0.02] transition">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-wider text-red-400/70 font-mono font-medium">Removal Log</span>
-                  <span className="text-[9px] text-white/20 font-mono">{removalLog.length} removed</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-white/20 font-mono">{removalLog.length} removed</span>
+                    <svg className={`w-3 h-3 text-white/30 transition ${showRemovalLog ? "" : "-rotate-90"}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                  </div>
                 </div>
-              </div>
+              </button>
+              {showRemovalLog && (<div className="max-h-[50vh] overflow-y-auto">
               <div className="p-2 space-y-1">
                 {removalLog.map((entry, i) => {
                   const color = LEVEL_COLORS[entry.trophicLevel] || "#64748b";
@@ -1217,6 +1274,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                   Download Report
                 </button>
               </div>
+              </div>)}
             </div>
           )}
           <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2 px-3 py-2 border border-white/[0.06]" style={{ background: "rgba(8,8,8,0.9)" }}>
@@ -1248,7 +1306,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ animation: aiLoading ? "pulse 1.5s infinite" : "none" }} />
                 <span className="text-[10px] uppercase tracking-wider text-emerald-400/70 font-medium">{aiLoading ? "Generating ecological assessment..." : "AI Ecological Assessment"}</span>
-                <span className="text-[9px] text-white/20 ml-auto">Powered by Gemini</span>
+                <span className="text-[9px] text-white/20 ml-auto">Snowflake Cortex AI · Gemini fallback</span>
               </div>
               {aiLoading ? <div className="flex gap-1">{[0, 1, 2].map((i) => <div key={i} className="h-2 rounded-full bg-white/5 animate-pulse" style={{ width: `${30 + i * 20}%`, animationDelay: `${i * 0.15}s` }} />)}</div> : <p className="text-sm text-white/60 leading-relaxed">{aiInterpretation}</p>}
             </div>

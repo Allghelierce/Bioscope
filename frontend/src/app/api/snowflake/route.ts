@@ -5,15 +5,24 @@ snowflake.configure({ logLevel: "OFF" });
 
 function getConnection(): Promise<snowflake.Connection> {
   return new Promise((resolve, reject) => {
+    const database = process.env.SNOWFLAKE_DATABASE || "BIOSCOPE";
+    const schema = process.env.SNOWFLAKE_SCHEMA || "PUBLIC";
     const conn = snowflake.createConnection({
       account: process.env.SNOWFLAKE_ACCOUNT!,
       username: process.env.SNOWFLAKE_USER!,
       password: process.env.SNOWFLAKE_PASSWORD!,
-      database: "BIOSCOPE",
-      schema: "PUBLIC",
+      database: database,
+      schema: schema,
       warehouse: process.env.SNOWFLAKE_WAREHOUSE || "COMPUTE_WH",
     });
-    conn.connect((err, c) => (err ? reject(err) : resolve(c)));
+    conn.connect((err, c) => {
+      if (err) {
+        console.error("Snowflake Connection Error:", err.message);
+        reject(err);
+      } else {
+        resolve(c);
+      }
+    });
   });
 }
 
@@ -92,6 +101,59 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ answer: rows[0]?.ANSWER });
       }
 
+      case "ecosystem_species": {
+        if (!zone) return NextResponse.json({ error: "zone param required (comma-separated zone names)" }, { status: 400 });
+        const zoneNames = zone.split(",").map(z => z.trim().replace(/'/g, "''"));
+        const zoneLikeClause = zoneNames.map(z => `place_guess LIKE '%${z}%'`).join(" OR ");
+        rows = await executeQuery(conn, `
+          SELECT
+            scientific_name,
+            common_name,
+            iconic_taxon_name AS taxon_group,
+            COUNT(*) AS observation_count,
+            COUNT(DISTINCT place_guess) AS locations_found,
+            MIN(observed_on) AS first_seen,
+            MAX(observed_on) AS last_seen
+          FROM threatened_species
+          WHERE ${zoneLikeClause}
+          GROUP BY scientific_name, common_name, iconic_taxon_name
+          ORDER BY observation_count DESC
+          LIMIT 200
+        `);
+        return NextResponse.json({ species: rows, ecosystem: zone, total: rows.length });
+      }
+
+      case "ecosystem_stats": {
+        if (!zone) return NextResponse.json({ error: "zone param required" }, { status: 400 });
+        const ecoZones = zone.split(",").map(z => z.trim().replace(/'/g, "''"));
+        const ecoLike = ecoZones.map(z => `place_guess LIKE '%${z}%'`).join(" OR ");
+        const [speciesRows, trendRows, taxonRows] = await Promise.all([
+          executeQuery(conn, `
+            SELECT COUNT(DISTINCT scientific_name) AS unique_species,
+                   COUNT(*) AS total_observations,
+                   COUNT(DISTINCT place_guess) AS unique_locations
+            FROM threatened_species WHERE ${ecoLike}
+          `),
+          executeQuery(conn, `
+            SELECT YEAR(observed_on) AS year, COUNT(DISTINCT scientific_name) AS species_count,
+                   COUNT(*) AS obs_count
+            FROM threatened_species WHERE ${ecoLike}
+            GROUP BY YEAR(observed_on) ORDER BY year
+          `),
+          executeQuery(conn, `
+            SELECT iconic_taxon_name AS taxon, COUNT(DISTINCT scientific_name) AS species_count,
+                   COUNT(*) AS observation_count
+            FROM threatened_species WHERE ${ecoLike}
+            GROUP BY iconic_taxon_name ORDER BY observation_count DESC
+          `),
+        ]);
+        return NextResponse.json({
+          summary: speciesRows[0],
+          trends: trendRows,
+          taxonomy: taxonRows,
+        });
+      }
+
       case "species_lookup": {
         if (!species) return NextResponse.json({ error: "species param required" }, { status: 400 });
         const safeSp = species.replace(/'/g, "''");
@@ -112,6 +174,70 @@ export async function GET(req: NextRequest) {
           LIMIT 5
         `);
         return NextResponse.json({ results: rows });
+      }
+
+      case "cascade_interpret": {
+        if (!species) return NextResponse.json({ error: "species param required" }, { status: 400 });
+        const safeCascadeSp = species.replace(/'/g, "''");
+        const keystoneScore = req.nextUrl.searchParams.get("keystone_score") || "0";
+        const victimCount = req.nextUrl.searchParams.get("victim_count") || "0";
+        const trophicHit = req.nextUrl.searchParams.get("trophic_hit") || "0";
+        const ecoName = req.nextUrl.searchParams.get("ecosystem") || "San Diego County";
+        const safeEco = ecoName.replace(/'/g, "''");
+        rows = await executeQuery(conn, `
+          SELECT analyze_cascade_impact(
+            '${safeCascadeSp}',
+            ${parseFloat(keystoneScore)},
+            ${parseInt(victimCount)},
+            ${parseInt(trophicHit)},
+            '${safeEco}'
+          ) AS analysis
+        `);
+        return NextResponse.json({ analysis: rows[0]?.ANALYSIS });
+      }
+
+      case "zone_risk": {
+        if (!zone) return NextResponse.json({ error: "zone param required" }, { status: 400 });
+        const safeRiskZone = zone.replace(/'/g, "''");
+        const speciesCount = req.nextUrl.searchParams.get("species_count") || "0";
+        const missingLevels = req.nextUrl.searchParams.get("missing_levels") || "none";
+        const declinePct = req.nextUrl.searchParams.get("decline_pct") || "0";
+        const safeMissing = missingLevels.replace(/'/g, "''");
+        rows = await executeQuery(conn, `
+          SELECT assess_zone_risk(
+            '${safeRiskZone}',
+            ${parseInt(speciesCount)},
+            '${safeMissing}',
+            ${parseFloat(declinePct)}
+          ) AS assessment
+        `);
+        return NextResponse.json({ assessment: rows[0]?.ASSESSMENT });
+      }
+
+      case "interactions": {
+        if (!species) return NextResponse.json({ error: "species param required" }, { status: 400 });
+        const safeInterSp = species.replace(/'/g, "''");
+        rows = await executeQuery(conn, `
+          SELECT
+            source_name, source_trophic,
+            target_name, target_trophic,
+            interaction_type, strength, data_source
+          FROM interaction_network
+          WHERE source_species = '${safeInterSp}' OR target_species = '${safeInterSp}'
+          ORDER BY strength DESC
+          LIMIT 20
+        `);
+        return NextResponse.json({ interactions: rows, species: species });
+      }
+
+      case "cascade_rankings": {
+        rows = await executeQuery(conn, `
+          SELECT * FROM cascade_dependency_count
+          WHERE priority IN ('CRITICAL', 'HIGH')
+          ORDER BY keystone_score DESC
+          LIMIT 20
+        `);
+        return NextResponse.json({ rankings: rows });
       }
 
       default:
