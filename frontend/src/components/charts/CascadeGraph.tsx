@@ -22,15 +22,6 @@ import {
 import { zoom as d3Zoom, zoomIdentity, type ZoomTransform } from "d3-zoom";
 import { select, selectAll } from "d3-selection";
 import { drag as d3Drag } from "d3-drag";
-import { 
-  forceSimulation, 
-  forceLink, 
-  forceManyBody, 
-  forceCenter, 
-  forceCollide, 
-  forceX, 
-  forceY 
-} from "d3-force";
 import "d3-transition";
 import {
   APP_DATA_URL,
@@ -122,12 +113,21 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
   const simRef = useRef<ReturnType<typeof forceSimulation<SimNode>> | null>(null);
   const transformRef = useRef<ZoomTransform>(zoomIdentity);
   const animFrameRef = useRef<number>(0);
+  const dragRef = useRef<ReturnType<typeof d3Drag<any, SimNode>> | null>(null);
 
   const [dims, setDims] = useState({ w: 900, h: 600 });
   const [simNodes, setSimNodes] = useState<SimNode[]>([]);
   const [simLinks, setSimLinks] = useState<SimLink[]>([]);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setHoveredThrottled = useCallback((id: string | null) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    if (id === null) { hoverTimerRef.current = setTimeout(() => setHoveredNode(null), 30); }
+    else setHoveredNode(id);
+  }, []);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [snowflakeData, setSnowflakeData] = useState<any>(null);
+  const [snowflakeLoading, setSnowflakeLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTrophicFilters, setActiveTrophicFilters] = useState<Set<string>>(new Set(Object.keys(LEVEL_COLORS)));
   const [removedNodes, setRemovedNodes] = useState<Set<string>>(new Set());
@@ -149,6 +149,27 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
   } | null>(null);
   const [speciesPhotos, setSpeciesPhotos] = useState<Record<string, string | null>>({});
   const [graphsLoading, setGraphsLoading] = useState(true);
+
+  const zoomRafRef = useRef<number>(0);
+  const zoomBehavior = useMemo(() => {
+    return d3Zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 8])
+      .filter((event) => !event.button)
+      .on("zoom", (event) => {
+        const g = select(gRef.current);
+        g.attr("transform", event.transform);
+        transformRef.current = event.transform;
+        cancelAnimationFrame(zoomRafRef.current);
+        zoomRafRef.current = requestAnimationFrame(() => setTransform(event.transform));
+      });
+  }, []);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    select(svg).call(zoomBehavior as any);
+    return () => { select(svg).on(".zoom", null); };
+  }, [zoomBehavior]);
 
   useEffect(() => {
     setGraphsLoading(true);
@@ -209,7 +230,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     return entries.filter(([name, eco]) =>
       name.toLowerCase().includes(q) || eco.description.toLowerCase().includes(q) || eco.keywords.some((k: string) => k.includes(q))
     );
-  }, [ecoSearchQuery]);
+  }, [ecoSearchQuery, appData]);
 
   const handleEcoSearch = useCallback(async (query: string) => {
     setEcoSearchQuery(query);
@@ -235,7 +256,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
       if (answer && ecosystemIndex[answer]) { setSelectedEcosystem(answer); setShowEcoBrowser(false); }
     } catch { /* fallback */ }
     setAiSearching(false);
-  }, []);
+  }, [appData]);
 
   const getCascadeVictims = useCallback((removedId: string): Set<string> => {
     const victims = new Set<string>();
@@ -330,6 +351,15 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     const nodeMap = new Map(sNodes.map((n) => [n.data.id, n]));
     const sLinks: SimLink[] = graphEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => ({ source: nodeMap.get(e.source)!, target: nodeMap.get(e.target)!, edgeType: e.type })).filter((l) => l.source && l.target);
     
+    const sim = forceSimulation<SimNode>(sNodes)
+      .force("link", forceLink<SimNode, SimLink>(sLinks).id((d) => d.data.id).distance(100).strength(0.15))
+      .force("charge", forceManyBody<SimNode>().strength(-220).distanceMax(450))
+      .force("center", forceCenter(dims.w / 2, dims.h / 2).strength(0.02))
+      .force("collide", forceCollide<SimNode>().radius((d) => d.radius + 20).strength(0.7).iterations(1))
+      .force("x", forceX<SimNode>(dims.w / 2).strength(0.04))
+      .force("y", forceY<SimNode>((d) => dims.h * (TROPHIC_LAYERS[d.data.trophic_level] ?? 0.5)).strength(0.12))
+      .alphaDecay(0.06).velocityDecay(0.5);
+
     const drag = d3Drag<any, SimNode>()
       .on("start", (event, d) => {
         if (!event.active) sim.alphaTarget(0.3).restart();
@@ -345,65 +375,53 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
         d.fx = null;
         d.fy = null;
       });
-
-    const sim = forceSimulation<SimNode>(sNodes)
-      .force("link", forceLink<SimNode, SimLink>(sLinks).id((d) => d.data.id).distance(100).strength(0.15))
-      .force("charge", forceManyBody<SimNode>().strength(-220).distanceMax(450))
-      .force("center", forceCenter(dims.w / 2, dims.h / 2).strength(0.02))
-      .force("collide", forceCollide<SimNode>().radius((d) => d.radius + 20).strength(0.7).iterations(1))
-      .force("x", forceX<SimNode>(dims.w / 2).strength(0.04))
-      .force("y", forceY<SimNode>((d) => dims.h * (TROPHIC_LAYERS[d.data.trophic_level] ?? 0.5)).strength(0.12))
-      .alphaDecay(0.06).velocityDecay(0.5);
     if (hasExisting) sim.alpha(0.12).alphaTarget(0);
     simRef.current = sim;
 
     const svg = select(svgRef.current);
-    const g = select(gRef.current);
-    
-    // Reset transform on fresh load
-    g.attr("transform", zoomIdentity.toString());
-    
-    const zoom = d3Zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 8])
-      .on("zoom", (event) => {
-        g.attr("transform", event.transform);
-        setTransform(event.transform); // Only for state-aware UI if needed, but performance is in the DOM
-      });
 
-    svg.call(zoom as any);
-
+    let tickCount = 0;
     const tick = () => {
-      sim.tick();
+      const steps = sim.alpha() > 0.1 ? 3 : 1;
+      for (let i = 0; i < steps; i++) sim.tick();
+      tickCount += steps;
       sNodes.forEach((n) => { if (n.x != null && n.y != null) prevPositions.current.set(n.data.id, { x: n.x, y: n.y }); });
-      setSimNodes([...sNodes]); 
-      setSimLinks([...sLinks]);
+      if (tickCount % 2 === 0 || sim.alpha() <= 0.01) {
+        setSimNodes([...sNodes]);
+        setSimLinks([...sLinks]);
+      }
       if (sim.alpha() > 0.001) animFrameRef.current = requestAnimationFrame(tick);
     };
     animFrameRef.current = requestAnimationFrame(tick);
-    
-    // Apply drag to nodes via selection
-    svg.selectAll(".node-group").data(sNodes).call(drag as any);
+    dragRef.current = drag;
 
-    return () => { 
-      sim.stop(); 
+    return () => {
+      sim.stop();
       cancelAnimationFrame(animFrameRef.current);
-      svg.on(".zoom", null);
     };
   }, [graphNodes, graphEdges, dims, removedNodes, activeTrophicFilters]);
 
-  // Remove the separate zoom useEffect as it's now integrated or redundant
+  useEffect(() => {
+    if (!svgRef.current || !dragRef.current || simNodes.length === 0) return;
+    select(svgRef.current).selectAll<SVGGElement, SimNode>(".node-group")
+      .data(simNodes, (d: any) => d?.data?.id)
+      .call(dragRef.current as any);
+  }, [simNodes]);
 
   const handleZoomSlider = useCallback((s: number) => {
-    const svg = svgRef.current; const zb = zoomRef.current; if (!svg || !zb) return;
+    const svg = svgRef.current; if (!svg) return;
     const t = transformRef.current; const cx = dims.w / 2; const cy = dims.h / 2; const r = s / t.k;
-    select(svg).transition().duration(150).call(zb.transform, zoomIdentity.translate(cx - (cx - t.x) * r, cy - (cy - t.y) * r).scale(s));
-  }, [dims]);
+    const newT = zoomIdentity.translate(cx - (cx - t.x) * r, cy - (cy - t.y) * r).scale(s);
+    select(svg).call(zoomBehavior.transform as any, newT);
+  }, [dims, zoomBehavior]);
 
   useEffect(() => {
     prevPositions.current.clear(); setRemovedNodes(new Set()); setSelectedNode(null); setHoveredNode(null); setSearchQuery(""); setAnimatedVictims(new Set()); setActiveTrophicFilters(new Set(Object.keys(LEVEL_COLORS))); setAiInterpretation(null);
-    if (svgRef.current) select(svgRef.current).call(d3Zoom<SVGSVGElement, unknown>().transform, zoomIdentity);
+    if (svgRef.current) {
+      select(svgRef.current).call(zoomBehavior.transform as any, zoomIdentity);
+    }
     setTransform(zoomIdentity);
-  }, [zone, selectedEcosystem]);
+  }, [zone, selectedEcosystem, zoomBehavior]);
 
   useEffect(() => { if (zone) { setShowEcoBrowser(false); setSelectedEcosystem(null); } }, [zone]);
   useEffect(() => { if (ecosystem) { setSelectedEcosystem(ecosystem); setShowEcoBrowser(false); } }, [ecosystem]);
@@ -416,9 +434,9 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
 
   useEffect(() => {
     if (!searchMatch || !svgRef.current) return;
-    select(svgRef.current).transition().duration(600).call(d3Zoom<SVGSVGElement, unknown>().transform, zoomIdentity.translate(dims.w / 2 - (searchMatch.x ?? 0) * 2, dims.h / 2 - (searchMatch.y ?? 0) * 2).scale(2));
+    select(svgRef.current).transition().duration(600).call(zoomBehavior.transform as any, zoomIdentity.translate(dims.w / 2 - (searchMatch.x ?? 0) * 2, dims.h / 2 - (searchMatch.y ?? 0) * 2).scale(2));
     setSelectedNode(searchMatch.data.id);
-  }, [searchMatch, dims]);
+  }, [searchMatch, dims, zoomBehavior]);
 
   const connectedTo = useMemo(() => {
     const active = hoveredNode ?? selectedNode; if (!active) return new Set<string>();
@@ -510,7 +528,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
           <div className="relative flex-1 max-w-xs">
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search species..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/25" />
-            {searchQuery && <button onClick={() => { setSearchQuery(""); setSelectedNode(null); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">×</button>}
+            {searchQuery && <button onClick={() => { setSearchQuery(""); setSelectedNode(null); if (svgRef.current) select(svgRef.current).transition().duration(400).call(zoomBehavior.transform as any, zoomIdentity); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">×</button>}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             {Object.entries(LEVEL_COLORS).map(([level, color]) => {
@@ -535,7 +553,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
             width={dims.w} 
             height={dims.h} 
             className="w-full cursor-grab active:cursor-grabbing outline-none" 
-            onClick={() => setSelectedNode(null)}
+            onClick={() => { setSelectedNode(null); setSnowflakeData(null); if (searchQuery && svgRef.current) { setSearchQuery(""); select(svgRef.current).transition().duration(400).call(zoomBehavior.transform as any, zoomIdentity); } }}
           >
             <style>
               {`
@@ -548,14 +566,18 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
               `}
             </style>
             <defs>
-              <filter id="node-glow"><feGaussianBlur stdDeviation="6" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
               <radialGradient id="bg-gradient" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="rgba(16,70,32,0.04)" /><stop offset="60%" stopColor="rgba(6,10,7,0)" /></radialGradient>
+              {simNodes.map(node => (
+                <clipPath key={`clip-${node.data.id}`} id={`clip-${node.data.id.replace(/[^a-zA-Z0-9]/g, "-")}`}>
+                  <circle cx={node.x} cy={node.y} r={node.radius + (hoveredNode === node.data.id ? 4.5 : 0.5)} />
+                </clipPath>
+              ))}
             </defs>
             <rect width={dims.w} height={dims.h} fill="#060a07" />
             <rect width={dims.w} height={dims.h} fill="url(#bg-gradient)" />
             <pattern id="dot-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="12" cy="12" r="0.4" fill="rgba(110,231,183,0.06)" /></pattern>
             <rect width={dims.w} height={dims.h} fill="url(#dot-grid)" />
-            <g ref={gRef}>
+            <g ref={gRef} transform={transform.toString()}>
               {simLinks.map((link, i) => {
                 const src = link.source as SimNode; const tgt = link.target as SimNode;
                 if (src.x == null || tgt.x == null) return null;
@@ -583,7 +605,10 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                   </g>
                 );
               })}
-              {simNodes.map((node) => {
+              {(() => {
+                const hNode = hoveredNode ? simNodes.find((n) => n.data.id === hoveredNode) : null;
+                const hx = hNode?.x ?? 0, hy = hNode?.y ?? 0;
+                return simNodes.map((node) => {
                 if (node.x == null || node.y == null) return null;
                 const color = LEVEL_COLORS[node.data.trophic_level] || "#64748b";
                 const isHovered = hoveredNode === node.data.id; const isSelected = selectedNode === node.data.id;
@@ -592,56 +617,69 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                 const dimmed = activeId && !isHovered && !isSelected && !isConnected && !isCascadeVictim;
                 const r = isHovered || isSelected ? node.radius + 6 : node.radius + 2;
                 let rippleX = 0, rippleY = 0;
-                if (hoveredNode && !isHovered) {
-                  const hNode = simNodes.find((n) => n.data.id === hoveredNode);
-                  if (hNode?.x != null && hNode?.y != null) {
-                    const dx = node.x - hNode.x, dy = node.y - hNode.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > 0 && dist < 140) {
-                      const push = (1 - dist / 140) * 12;
-                      rippleX = (dx / dist) * push;
-                      rippleY = (dy / dist) * push;
-                    }
+                if (hNode && !isHovered) {
+                  const dx = node.x - hx, dy = node.y - hy;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  if (dist > 0 && dist < 140) {
+                    const push = (1 - dist / 140) * 12;
+                    rippleX = (dx / dist) * push;
+                    rippleY = (dy / dist) * push;
                   }
                 }
-                const nx = node.x + rippleX, ny = node.y + rippleY;
                 return (
                   <g 
                     key={node.data.id} 
                     className="node-group cursor-pointer" 
-                    onMouseEnter={() => setHoveredNode(node.data.id)} 
-                    onMouseLeave={() => setHoveredNode(null)} 
+                    onMouseEnter={() => setHoveredThrottled(node.data.id)}
+                    onMouseLeave={() => setHoveredThrottled(null)} 
                     onClick={(e) => { 
                       e.stopPropagation(); 
-                      if (!cascadeAnimating) setSelectedNode(selectedNode === node.data.id ? null : node.data.id); 
+                      if (!cascadeAnimating) {
+                        const newId = selectedNode === node.data.id ? null : node.data.id;
+                        setSelectedNode(newId);
+                        setSnowflakeData(null);
+                        if (newId) {
+                          setSnowflakeLoading(true);
+                          fetch(`/api/snowflake?action=species_lookup&species=${encodeURIComponent(newId)}`)
+                            .then(r => r.json())
+                            .then(d => { if (d.results?.[0]) setSnowflakeData(d.results[0]); })
+                            .catch(() => {})
+                            .finally(() => setSnowflakeLoading(false));
+                        }
+                      }
                     }} 
                     style={{ opacity: dimmed ? 0.25 : 1 }}
                   >
-                    {!dimmed && <circle cx={node.x} cy={node.y} r={r + 12} fill={color} opacity={isHovered || isSelected ? 0.18 : 0.06} filter="url(#node-glow)" />}
+                    {!dimmed && <circle cx={node.x} cy={node.y} r={r + 12} fill={color} opacity={isHovered || isSelected ? 0.18 : 0.06}  />}
                     {isDeclining && !dimmed && !isCascadeVictim && <circle cx={node.x} cy={node.y} r={r + 5} fill="none" stroke="#f97316" strokeWidth={0.8} strokeDasharray="2 2" opacity={0.4}><animate attributeName="opacity" values="0.2;0.5;0.2" dur="3s" repeatCount="indefinite" /></circle>}
                     {isAnimVictim && <circle cx={node.x} cy={node.y} r={r} fill="none" stroke="#ef4444" strokeWidth={2} opacity={0}><animate attributeName="r" from={String(r)} to={String(r + 30)} dur="0.7s" fill="freeze" /><animate attributeName="opacity" from="0.8" to="0" dur="0.7s" fill="freeze" /></circle>}
                     <circle cx={node.x} cy={node.y} r={r} fill={isCascadeVictim || isAnimVictim ? "rgba(239,68,68,0.3)" : "#0a0f0b"} stroke={isSelected ? "#fff" : isHovered ? "rgba(255,255,255,0.7)" : isCascadeVictim ? "#ef4444" : color} strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} opacity={isCascadeVictim ? 0.4 : 1} />
-                    {speciesPhotos[node.data.id] ? (
-                      <g clipPath="circle()">
-                        <image
-                          href={speciesPhotos[node.data.id]!}
-                          x={node.x - r}
-                          y={node.y - r}
-                          width={r * 2}
-                          height={r * 2}
-                          preserveAspectRatio="xMidYMid slice"
-                          opacity={isCascadeVictim || isAnimVictim ? 0.2 : 1}
-                          style={{ pointerEvents: "none" }}
-                        />
-                      </g>
-                    ) : (
-                      <circle cx={node.x} cy={node.y} r={r - 2} fill={`${color}30`} style={{ pointerEvents: "none" }} />
-                    )}
+                    {(() => {
+                      const photoUrl = speciesPhotos[node.data.id];
+                      const clipId = `clip-${node.data.id.replace(/[^a-zA-Z0-9]/g, "-")}`;
+                      if (photoUrl) {
+                        return (
+                          <image
+                            href={photoUrl}
+                            x={node.x - r + 1.5}
+                            y={node.y - r + 1.5}
+                            width={(r - 1.5) * 2}
+                            height={(r - 1.5) * 2}
+                            clipPath={`url(#${clipId})`}
+                            preserveAspectRatio="xMidYMid slice"
+                            opacity={isCascadeVictim || isAnimVictim ? 0.2 : 1}
+                            style={{ pointerEvents: "none" }}
+                          />
+                        );
+                      }
+                      return <circle cx={node.x} cy={node.y} r={r - 2} fill={`${color}30`} style={{ pointerEvents: "none" }} />;
+                    })()}
                     {(isCascadeVictim || isAnimVictim) && <text x={node.x} y={(node.y ?? 0) + r * 0.35} textAnchor="middle" fill="#ef4444" fontSize={r * 1.4} fontWeight="bold" style={{ pointerEvents: "none" }}>{"\u00d7"}</text>}
                     {(isHovered || isSelected) && <text x={node.x} y={(node.y ?? 0) + r + 12} textAnchor="middle" fill={isCascadeVictim ? "rgba(239,68,68,0.6)" : "#fff"} fontSize={10} fontWeight="600" letterSpacing="0.01em" paintOrder="stroke" stroke="rgba(6,10,7,0.9)" strokeWidth={4} style={{ textDecoration: isCascadeVictim ? "line-through" : "none" }}>{node.data.common_name || node.data.id}</text>}
                   </g>
                 );
-              })}
+              });
+              })()}
             </g>
           </svg>
           <AnimatePresence>
@@ -649,7 +687,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.2 }} className="absolute top-4 right-4 w-72 border border-white/[0.06] rounded-xl p-4 backdrop-blur-xl z-10" style={{ background: "rgba(6,14,8,0.92)" }}>
                 <div className="flex items-start justify-between mb-3">
                   <div><h4 className="text-sm font-semibold text-white">{selectedData.common_name || selectedData.id}</h4><p className="text-xs text-white/40 italic">{selectedData.id}</p></div>
-                  <button onClick={() => setSelectedNode(null)} className="text-white/30 hover:text-white/60 text-lg leading-none shrink-0">×</button>
+                  <button onClick={() => { setSelectedNode(null); setSnowflakeData(null); if (searchQuery && svgRef.current) { setSearchQuery(""); select(svgRef.current).transition().duration(400).call(zoomBehavior.transform as any, zoomIdentity); } }} className="text-white/30 hover:text-white/60 text-lg leading-none shrink-0">×</button>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Observations</div><div className="text-sm font-semibold text-white">{selectedData.observations.toLocaleString()}</div></div>
@@ -662,6 +700,27 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                 {selectedData.family && <div className="text-xs text-white/40 mb-3">{selectedData.family} · {selectedData.order}</div>}
                 {selectedData.decline_trend < -30 && selectedData.keystone_score > 0 && <div className="text-[10px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300 mb-3">Critical — high keystone AND declining</div>}
                 <div className="text-xs text-white/30 mb-2">{connectedTo.size} direct connections</div>
+                {snowflakeLoading && (
+                  <div className="flex items-center gap-2 mb-2 px-2 py-1.5 bg-emerald-500/5 border border-emerald-500/10 rounded">
+                    <div className="w-2 h-2 border border-emerald-400/40 border-t-emerald-400 rounded-full animate-spin" />
+                    <span className="text-[9px] text-emerald-400/40 font-mono">querying snowflake...</span>
+                  </div>
+                )}
+                {snowflakeData && (
+                  <div className="mb-2 px-2 py-1.5 bg-emerald-500/5 border border-emerald-500/10 rounded">
+                    <div className="text-[8px] text-emerald-400/30 font-mono uppercase tracking-widest mb-1">live from snowflake</div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                      <span className="text-white/25">observations</span>
+                      <span className="text-white/50 font-mono text-right">{snowflakeData.OBSERVATION_COUNT?.toLocaleString() ?? '—'}</span>
+                      <span className="text-white/25">locations</span>
+                      <span className="text-white/50 font-mono text-right">{snowflakeData.LOCATIONS_FOUND ?? '—'}</span>
+                      <span className="text-white/25">first seen</span>
+                      <span className="text-white/50 font-mono text-right">{typeof snowflakeData.FIRST_SEEN === 'string' ? snowflakeData.FIRST_SEEN.slice(0, 10) : snowflakeData.FIRST_SEEN ?? '—'}</span>
+                      <span className="text-white/25">last seen</span>
+                      <span className="text-white/50 font-mono text-right">{typeof snowflakeData.LAST_SEEN === 'string' ? snowflakeData.LAST_SEEN.slice(0, 10) : snowflakeData.LAST_SEEN ?? '—'}</span>
+                    </div>
+                  </div>
+                )}
                 <button onClick={() => animateCascade(selectedNode!)} disabled={cascadeAnimating} className="w-full text-xs px-3 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium transition disabled:opacity-50 disabled:cursor-not-allowed">
                   Simulate Removal{selectedCascadeCount > 0 && <span className="ml-1 text-red-400/60">— cascades to {selectedCascadeCount}</span>}
                 </button>
