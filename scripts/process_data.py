@@ -39,6 +39,51 @@ LAT_MIN, LAT_MAX = 32.53, 33.22
 LNG_MIN, LNG_MAX = -117.60, -116.08
 GRID_ROWS, GRID_COLS = 7, 7
 
+ECOSYSTEM_TYPES = {
+    "Coastal Marine & Estuary": {
+        "zones": ["Border Field", "Imperial Beach", "Coronado", "Point Loma", "Mission Bay", "La Jolla", "Del Mar"],
+        "description": "Tidepools, salt marshes, estuaries, and nearshore marine habitats along the San Diego coastline",
+        "keywords": ["ocean", "coastal", "marine", "tidepool", "estuary", "salt marsh", "beach", "shore", "sea", "kelp", "reef"],
+    },
+    "Coastal Sage Scrub": {
+        "zones": ["Otay Mesa", "Chula Vista", "National City", "Spring Valley", "Mission Valley", "Balboa Park", "Miramar"],
+        "description": "Low-elevation scrubland dominated by aromatic shrubs — California's most endangered habitat",
+        "keywords": ["sage", "scrub", "chaparral lowland", "urban edge", "suburban", "coastal scrub"],
+    },
+    "Chaparral & Grassland": {
+        "zones": ["Jamul", "Alpine", "Santee", "Mission Trails", "Poway", "Scripps Ranch", "Rancho Santa Fe", "Carmel Valley"],
+        "description": "Dense, fire-adapted shrubland and native grassland at mid-elevations",
+        "keywords": ["chaparral", "grassland", "fire", "shrub", "hillside", "canyon", "brush", "manzanita"],
+    },
+    "Mountain Forest": {
+        "zones": ["Otay Mountain", "Pine Valley", "Mount Laguna", "Cuyamaca", "Julian", "Palomar Mountain", "Palomar East"],
+        "description": "Conifer and mixed forests at high elevations with cooler, wetter conditions",
+        "keywords": ["mountain", "forest", "pine", "oak", "conifer", "alpine", "woodland", "elevation", "montane"],
+    },
+    "Desert & Arid Scrub": {
+        "zones": ["Anza-Borrego South", "Anza-Borrego Central", "Anza-Borrego North", "Borrego Springs"],
+        "description": "Hot, arid desert with specialized drought-adapted species and ephemeral bloom events",
+        "keywords": ["desert", "arid", "anza-borrego", "borrego", "cactus", "dry", "sand", "dune", "succulent"],
+    },
+    "Inland Valley & Riparian": {
+        "zones": ["Ramona", "San Pasqual", "Santa Ysabel", "Valley Center", "Escondido", "Rancho Bernardo", "El Cajon"],
+        "description": "River corridors, seasonal streams, and agricultural valleys supporting riparian woodland",
+        "keywords": ["river", "stream", "riparian", "creek", "valley", "wetland", "lake", "pond", "freshwater", "water"],
+    },
+    "Border & Transition": {
+        "zones": ["Tecate", "Campo", "Jacumba", "Mountain Empire", "Temecula Border", "Fallbrook", "Vista", "San Marcos"],
+        "description": "Ecological transition zones where biomes meet — high species mixing and unique assemblages",
+        "keywords": ["border", "transition", "ecotone", "edge", "mixed", "corridor"],
+    },
+    "Urban Parkland": {
+        "zones": ["Downtown SD", "Balboa Park", "Mission Trails", "Coronado"],
+        "description": "Urban green spaces and parks that serve as biodiversity refugia in developed areas",
+        "keywords": ["urban", "park", "city", "garden", "backyard", "developed", "neighborhood"],
+    },
+}
+
+ZONE_NAME_TO_COORDS = {}  # populated after ZONE_NAMES
+
 ZONE_NAMES = {
     (0, 0): "Border Field", (0, 1): "Otay Mesa", (0, 2): "Otay Mountain",
     (0, 3): "Tecate", (0, 4): "Campo", (0, 5): "Jacumba", (0, 6): "Mountain Empire",
@@ -55,6 +100,10 @@ ZONE_NAMES = {
     (6, 0): "Del Mar", (6, 1): "Carmel Valley", (6, 2): "Rancho Santa Fe",
     (6, 3): "San Marcos", (6, 4): "Vista", (6, 5): "Fallbrook", (6, 6): "Temecula Border",
 }
+
+# Build reverse lookup: zone name → (r, c)
+for (r, c), name in ZONE_NAMES.items():
+    ZONE_NAME_TO_COORDS[name] = (r, c)
 
 with open(INPUT) as f:
     reader = csv.DictReader(f)
@@ -277,7 +326,7 @@ for level, sps in all_by_level.items():
 # Then fill remaining slots from top by observation count
 all_sorted = sorted(all_species.values(), key=lambda s: species_observations[s["scientific_name"]], reverse=True)
 for sp in all_sorted:
-    if len(top_species_set) >= 60:
+    if len(top_species_set) >= 150:
         break
     top_species_set.add(sp["scientific_name"])
 
@@ -517,6 +566,95 @@ critical_count = sum(1 for v in zone_keystone_rankings.values() for r in v if r[
 print(f"Zone keystone rankings: {zones_with_keystones} zones with keystones, {critical_count} critical-priority species")
 
 
+# ─── Ecosystem-level subgraphs ───
+print("\nBuilding ecosystem subgraphs...")
+ecosystem_graphs = {}
+
+for eco_name, eco_info in ECOSYSTEM_TYPES.items():
+    eco_zone_keys = []
+    for zone_name in eco_info["zones"]:
+        if zone_name in ZONE_NAME_TO_COORDS:
+            eco_zone_keys.append(ZONE_NAME_TO_COORDS[zone_name])
+
+    # Collect all species observed in any of the ecosystem's zones
+    eco_species = set()
+    for zk in eco_zone_keys:
+        if zk in zones:
+            eco_species.update(zones[zk]["species"])
+
+    # Intersect with our 150-species dependency graph
+    eco_node_ids = top_species_ids & eco_species
+    if len(eco_node_ids) < 3:
+        continue
+
+    eco_nodes = []
+    for node in dependency_nodes:
+        if node["id"] in eco_node_ids:
+            eco_nodes.append({
+                "id": node["id"],
+                "common_name": node["common_name"],
+                "trophic_level": node["trophic_level"],
+                "observations": node["observations"],
+                "decline_trend": node["decline_trend"],
+                "keystone_score": node["keystone_score"],
+            })
+
+    eco_edges = []
+    for edge in dependency_edges:
+        if edge["source"] in eco_node_ids and edge["target"] in eco_node_ids:
+            eco_edges.append(edge)
+
+    # Compute ecosystem-local keystone scores
+    for en in eco_nodes:
+        local_victims = compute_cascade_victims(en["id"], eco_nodes, eco_edges)
+        en["zone_keystone_score"] = round(len(local_victims) / max(len(eco_nodes) - 1, 1), 3)
+
+    # Top keystones for this ecosystem
+    eco_keystones = sorted(
+        [n for n in eco_nodes if n.get("zone_keystone_score", 0) > 0],
+        key=lambda n: n["zone_keystone_score"],
+        reverse=True,
+    )[:5]
+
+    eco_keystone_list = []
+    for ek in eco_keystones:
+        local_victims = compute_cascade_victims(ek["id"], eco_nodes, eco_edges)
+        victim_names = [n["common_name"] for n in eco_nodes if n["id"] in local_victims]
+        eco_keystone_list.append({
+            "id": ek["id"],
+            "common_name": ek["common_name"],
+            "trophic_level": ek["trophic_level"],
+            "zone_keystone_score": ek["zone_keystone_score"],
+            "decline_trend": ek["decline_trend"],
+            "cascade_victim_count": len(local_victims),
+            "cascade_victim_names": victim_names,
+        })
+
+    # Zone-level health grades for this ecosystem
+    eco_zone_ids = []
+    for zk in eco_zone_keys:
+        zid = f"{zk[0]}-{zk[1]}"
+        for zs in zone_summaries:
+            if zs["id"] == zid:
+                eco_zone_ids.append({"id": zid, "name": zs["name"], "grade": zs["health"]["grade"], "score": zs["health"]["score"]})
+                break
+
+    ecosystem_graphs[eco_name] = {
+        "description": eco_info["description"],
+        "keywords": eco_info["keywords"],
+        "zone_count": len(eco_zone_keys),
+        "zones": eco_zone_ids,
+        "nodes": eco_nodes,
+        "edges": eco_edges,
+        "keystones": eco_keystone_list,
+        "species_count": len(eco_nodes),
+        "edge_count": len(eco_edges),
+    }
+    print(f"  {eco_name}: {len(eco_nodes)} species, {len(eco_edges)} edges, {len(eco_keystone_list)} keystones")
+
+print(f"Built {len(ecosystem_graphs)} ecosystem graphs")
+
+
 # ─── Collapse predictions ───
 collapse_predictions = []
 for zs in zone_summaries:
@@ -559,64 +697,96 @@ print(f"Collapse predictions: {len(collapse_predictions)} zones at risk")
 print(f"Global trophic: {dict(global_trophic)}")
 
 
-# ─── Write TypeScript ───
-ts_output = f'''// Auto-generated from {INPUT} — {total_obs} observations, {total_species} species
-// Do not edit manually
+# ─── Write Outputs ───
 
-export const ZONE_DATA = {json.dumps(zone_summaries, indent=2)} as const;
+# 1. Normalized JSON for Frontend (Lightweight)
+frontend_stats = {
+    "global_stats": {
+        "totalSpecies": total_species,
+        "totalObservations": total_obs,
+        "totalZones": len(zone_summaries),
+        "zonesAtRisk": len(collapse_predictions),
+        "trophicBreakdown": dict(global_trophic),
+        "healthDistribution": dict(Counter(z["health"]["grade"] for z in zone_summaries)),
+        "ecosystemCount": len(ecosystem_graphs),
+    },
+    "zones": [{
+        "id": z["id"],
+        "name": z["name"],
+        "lat": z["lat"],
+        "lng": z["lng"],
+        "grade": z["health"]["grade"],
+        "score": z["health"]["score"],
+        "total_species": z["total_species"],
+    } for z in zone_summaries]
+}
 
-export const DEPENDENCY_NODES = {json.dumps(dependency_nodes, indent=2)} as const;
+import os
+os.makedirs("data/snowflake", exist_ok=True)
 
-export const DEPENDENCY_EDGES = {json.dumps(dependency_edges, indent=2)} as const;
+with open("frontend/src/lib/siteMetadata.json", "w") as f:
+    json.dump(frontend_stats, f, indent=2)
 
-export const KEYSTONE_RANKINGS = {json.dumps(keystone_rankings, indent=2)} as const;
+# 2. Master Species Map (for hydration)
+master_species = { sid: {
+    "id": sid,
+    "common_name": sp["common_name"],
+    "trophic_level": sp["trophic_level"],
+    "trophic_label": sp["trophic_label"],
+    "iconic_taxon": sp["iconic_taxon"],
+    "order": sp["order"],
+    "family": sp["family"],
+} for sid, sp in all_species.items() }
 
-export interface ZoneNode {{
-  id: string;
-  common_name: string;
-  trophic_level: string;
-  observations: number;
-  decline_trend: number;
-  keystone_score: number;
-  zone_keystone_score: number;
-}}
+with open("frontend/src/lib/masterSpecies.json", "w") as f:
+    json.dump(master_species, f, indent=2)
 
-export interface ZoneKeystoneEntry {{
-  id: string;
-  common_name: string;
-  trophic_level: string;
-  zone_keystone_score: number;
-  decline_trend: number;
-  cascade_victim_count: number;
-  cascade_victim_names: string[];
-  trophic_levels_affected: number;
-  priority: "critical" | "high" | "medium" | "low";
-}}
+# 3. CSVs for Snowflake Integration
+def write_csv(filename, fieldnames, data):
+    with open(f"data/snowflake/{filename}", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(data)
 
-export const ZONE_DEPENDENCY_GRAPHS: Record<string, {{ nodes: ZoneNode[]; edges: DependencyEdge[] }}> = {json.dumps(zone_dependency_graphs, indent=2)};
+# regional_biodiversity.csv
+write_csv("regional_biodiversity.csv", 
+          ["region", "total_observations", "unique_species", "shannon_index", "biodiversity_score"],
+          [{"region": z["name"], 
+            "total_observations": z["total_observations"],
+            "unique_species": z["total_species"],
+            "shannon_index": z["health"].get("shannon_index", 0),
+            "biodiversity_score": z["health"]["score"]} for z in zone_summaries])
 
-export const ZONE_KEYSTONE_RANKINGS: Record<string, ZoneKeystoneEntry[]> = {json.dumps(zone_keystone_rankings, indent=2)};
+# temporal_trends.csv
+trends_data = []
+for z in zone_summaries:
+    for year, count in z["yearly_species"].items():
+        trends_data.append({
+            "region": z["name"],
+            "year": int(year),
+            "year_month": f"{year}-01",
+            "unique_species": count,
+            "observation_count": count # Proxy for sample size in this context
+        })
+write_csv("temporal_trends.csv", 
+          ["region", "year", "year_month", "unique_species", "observation_count"],
+          trends_data)
 
-export const COLLAPSE_PREDICTIONS = {json.dumps(collapse_predictions, indent=2)} as const;
+# species_dependencies.csv (for the cascade graph logic)
+deps_data = []
+for edge in dependency_edges:
+    deps_data.append({
+        "source": edge["source"],
+        "target": edge["target"],
+        "relationship_type": edge["type"],
+        "strength": edge["strength"]
+    })
+write_csv("species_dependencies.csv", 
+          ["source", "target", "relationship_type", "strength"],
+          deps_data)
 
-export const GLOBAL_STATS = {{
-  totalSpecies: {total_species},
-  totalObservations: {total_obs},
-  totalZones: {len(zone_summaries)},
-  zonesAtRisk: {len(collapse_predictions)},
-  trophicBreakdown: {json.dumps(dict(global_trophic))},
-  healthDistribution: {json.dumps(dict(Counter(z["health"]["grade"] for z in zone_summaries)))},
-}} as const;
+print(f"\nOptimization Complete:")
+print(f"  - Frontend Metadata: frontend/src/lib/siteMetadata.json")
+print(f"  - Master Species: frontend/src/lib/masterSpecies.json")
+print(f"  - Snowflake CSVs: data/snowflake/*.csv")
 
-export type Zone = typeof ZONE_DATA[number];
-export type DependencyNode = typeof DEPENDENCY_NODES[number];
-export type DependencyEdge = typeof DEPENDENCY_EDGES[number];
-export type KeystoneRanking = typeof KEYSTONE_RANKINGS[number];
-export type CollapsePrediction = typeof COLLAPSE_PREDICTIONS[number];
-export type ZoneDependencyGraph = {{ nodes: ZoneNode[]; edges: DependencyEdge[] }};
-'''
-
-with open(OUTPUT, "w") as f:
-    f.write(ts_output)
-
-print(f"\nWrote {OUTPUT}")
