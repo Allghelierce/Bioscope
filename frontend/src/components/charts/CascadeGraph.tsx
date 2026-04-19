@@ -23,6 +23,8 @@ import { zoom as d3Zoom, zoomIdentity, type ZoomTransform } from "d3-zoom";
 import { select, selectAll } from "d3-selection";
 import { drag as d3Drag } from "d3-drag";
 import "d3-transition";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   APP_DATA_URL,
   type DependencyEdge,
@@ -368,63 +370,262 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     const maxSpecies = removalLog[0].totalSpecies;
     const surviving = maxSpecies - removedNodes.size;
     const healthPct = ((surviving / maxSpecies) * 100).toFixed(1);
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 48;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 56;
+    const accent = [16, 185, 129] as const;
+    const textColor = [24, 24, 24] as const;
+    const muted = [90, 90, 90] as const;
 
-    let report = `BIOSCOPE CASCADE REMOVAL REPORT\n`;
-    report += `${"=".repeat(50)}\n\n`;
-    report += `Ecosystem: ${ecoName}\n`;
-    report += `Generated: ${new Date().toLocaleString()}\n`;
-    report += `Platform: BioScope — DataHacks 2026\n\n`;
-    report += `SUMMARY\n${"-".repeat(30)}\n`;
-    report += `Species directly removed: ${totalDirectRemovals}\n`;
-    report += `Total cascade victims: ${totalCascaded}\n`;
-    report += `Unique species lost: ${totalUniqueVictims + totalDirectRemovals}\n`;
-    report += `Original species count: ${maxSpecies}\n`;
-    report += `Surviving species: ${surviving}\n`;
-    report += `Ecosystem health remaining: ${healthPct}%\n\n`;
+    const getLastTableY = () => {
+      const lastTable = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable;
+      return lastTable?.finalY ?? y;
+    };
 
-    report += `REMOVAL LOG\n${"-".repeat(30)}\n\n`;
+    const ensureSpace = (spaceNeeded = 16) => {
+      if (y + spaceNeeded > pageHeight - margin) {
+        doc.addPage();
+        y = 56;
+      }
+    };
+
+    const setBodyStyle = () => {
+      doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+      doc.setFont("times", "normal");
+      doc.setFontSize(10.5);
+    };
+
+    const addEquationLine = (left: string, right: string) => {
+      setBodyStyle();
+      const leftWidth = doc.getTextWidth(left);
+      const valueLines = doc.splitTextToSize(right, contentWidth - 190);
+      const blockHeight = Math.max(14, valueLines.length * 13);
+      ensureSpace(blockHeight + 6);
+      doc.setFont("times", "italic");
+      doc.text(left, margin + 8, y);
+      doc.setFont("times", "normal");
+      doc.text(valueLines, margin + 24 + leftWidth, y);
+      y += blockHeight + 4;
+    };
+
+    const addSection = (text: string) => {
+      y = Math.max(y, getLastTableY() + 20);
+      ensureSpace(28);
+      doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
+      doc.text(text, margin, y);
+      y += 8;
+      doc.setDrawColor(accent[0], accent[1], accent[2]);
+      doc.setLineWidth(1.2);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 16;
+    };
+
+    const addParagraph = (text: string, indent = 0) => {
+      setBodyStyle();
+      const lines = doc.splitTextToSize(text, contentWidth - indent);
+      const height = lines.length * 14;
+      ensureSpace(height + 4);
+      doc.text(lines, margin + indent, y);
+      y += height + 4;
+    };
+
+    const addRule = () => {
+      ensureSpace(12);
+      doc.setDrawColor(228, 228, 228);
+      doc.setLineWidth(0.6);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 12;
+    };
+
+    doc.setFillColor(7, 10, 8);
+    doc.rect(0, 0, pageWidth, 84, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("times", "bold");
+    doc.setFontSize(22);
+    doc.text("BioScope Cascade Removal Report", margin, 34);
+    doc.setFont("times", "normal");
+    doc.setFontSize(10.5);
+    doc.text(`Ecosystem: ${ecoName}`, margin, 54);
+    doc.text(`Generated ${new Date().toLocaleString()}`, margin, 68);
+    y = 110;
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+
+    addSection("Abstract");
+    addParagraph("This report summarizes cascade-removal behavior in the selected ecosystem and converts the simulation into a compact conservation narrative. Direct removals are tracked alongside secondary losses so that the reader can see how a single species change propagates through the food web.");
+    addParagraph("The report is organized like a short scientific note: summary statistics, mathematical interpretation, per-removal evidence, and a concluding conservation synthesis. The goal is to present the simulation as a clear ecological result, not as a raw interface output.");
+    addRule();
+
+    addSection("Summary");
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      theme: "grid",
+      tableWidth: contentWidth,
+      styles: {
+        font: "times",
+        fontSize: 10,
+        cellPadding: 6,
+        lineColor: [228, 228, 228],
+        lineWidth: 0.5,
+        valign: "middle",
+      },
+      headStyles: {
+        fillColor: [12, 17, 14],
+        textColor: 255,
+        fontStyle: "bold",
+      },
+      alternateRowStyles: { fillColor: [250, 250, 250] },
+      columnStyles: {
+        0: { cellWidth: contentWidth * 0.68, fontStyle: "bold" },
+        1: { cellWidth: contentWidth * 0.32, halign: "right" },
+      },
+      head: [["Metric", "Value"]],
+      body: [
+        ["Species directly removed", `${totalDirectRemovals}`],
+        ["Total cascade victims", `${totalCascaded}`],
+        ["Unique species lost", `${totalUniqueVictims + totalDirectRemovals}`],
+        ["Original species count", `${maxSpecies}`],
+        ["Surviving species", `${surviving}`],
+        ["Ecosystem health remaining", `${healthPct}%`],
+      ],
+    });
+    y = getLastTableY() + 18;
+
+    addSection("Mathematical Summary");
+    addParagraph("Let S_0 denote the original species count and S_r the surviving count after removals. The expressions below summarize the cascade in compact notation.");
+    addEquationLine("S_0 =", `${maxSpecies}`);
+    addEquationLine("S_r =", `${surviving}`);
+    addEquationLine("H = 100 * (S_r / S_0) =", `${healthPct}%`);
+    addEquationLine("C =", `${totalCascaded} secondary losses`);
+    addEquationLine("U =", `${totalUniqueVictims} + ${totalDirectRemovals} = ${totalUniqueVictims + totalDirectRemovals}`);
+    addParagraph("These values make the collapse measurable: H captures retained ecosystem structure, C captures propagated losses, and U captures the total unique species impact. In other words, the equations summarize both resilience and fragility in one compact block.");
+
+    addSection("Removal Log");
     removalLog.forEach((entry, i) => {
-      report += `${i + 1}. ${entry.speciesName} (${entry.trophicLevel.replace(/_/g, " ")})\n`;
-      report += `   Keystone Score: ${(entry.keystoneScore * 100).toFixed(1)}%\n`;
-      report += `   Observations: ${entry.observations.toLocaleString()}\n`;
-      report += `   Cascade Impact: ${entry.impactPct.toFixed(1)}% of ecosystem\n`;
-      report += `   Species Lost: ${entry.cascadeVictimCount}\n`;
-      if (entry.cascadeVictimNames.length > 0) {
-        report += `   Victims: ${entry.cascadeVictimNames.join(", ")}\n`;
-      }
-      report += `   Trophic Levels Affected: ${entry.trophicLevelsAffected.map((l) => l.replace(/_/g, " ")).join(", ")}\n`;
-      if (entry.aiAssessment) {
-        report += `\n   AI Assessment:\n   ${entry.aiAssessment.replace(/\n/g, "\n   ")}\n`;
-      }
-      report += `\n`;
+      const victimText = entry.cascadeVictimNames.length > 0 ? entry.cascadeVictimNames.join(", ") : "None";
+      const assessmentText = entry.aiAssessment ? entry.aiAssessment.replace(/\n/g, " ") : "No AI assessment available.";
+
+      autoTable(doc, {
+        startY: y,
+        margin: { left: margin, right: margin, bottom: 36 },
+        theme: "striped",
+        tableWidth: contentWidth,
+        styles: {
+          font: "times",
+          fontSize: 9.5,
+          cellPadding: 6,
+          lineColor: [232, 232, 232],
+          lineWidth: 0.35,
+          valign: "top",
+          overflow: "linebreak",
+        },
+        headStyles: {
+          fillColor: [12, 17, 14],
+          textColor: 255,
+          fontStyle: "bold",
+        },
+        alternateRowStyles: { fillColor: [248, 248, 248] },
+        columnStyles: {
+          0: { cellWidth: contentWidth * 0.28, fontStyle: "bold" },
+          1: { cellWidth: contentWidth * 0.72 },
+        },
+        head: [[`Removal ${i + 1}`, entry.speciesName]],
+        body: [
+          ["Trophic level", entry.trophicLevel.replace(/_/g, " ")],
+          ["Keystone score", `${(entry.keystoneScore * 100).toFixed(1)}%`],
+          ["Observations", entry.observations.toLocaleString()],
+          ["Cascade impact", `${entry.impactPct.toFixed(1)}% of ecosystem`],
+          ["Species lost", `${entry.cascadeVictimCount}`],
+          ["Trophic levels affected", entry.trophicLevelsAffected.map((l) => l.replace(/_/g, " ")).join(", ")],
+          ["Victims", victimText],
+          ["AI assessment", assessmentText],
+        ],
+      });
+      y = getLastTableY() + 16;
     });
 
-    report += `\nCONSERVATION IMPLICATIONS\n${"-".repeat(30)}\n`;
+    addSection("Conservation Implications");
     const criticalRemovals = removalLog.filter((e) => e.impactPct > 10);
+    addParagraph("High-impact removals are listed below as a ranked result table, with the strongest effects first. This section highlights where a single removal produces disproportionate ecosystem loss and where intervention would matter most.");
+
     if (criticalRemovals.length > 0) {
-      report += `\nHigh-impact removals (>10% ecosystem loss):\n`;
-      criticalRemovals.forEach((e) => {
-        report += `  • ${e.speciesName}: ${e.impactPct.toFixed(1)}% impact, ${e.cascadeVictimCount} species cascaded\n`;
+      autoTable(doc, {
+        startY: y,
+        margin: { left: margin, right: margin },
+        theme: "grid",
+        tableWidth: contentWidth,
+        styles: {
+          font: "times",
+          fontSize: 9.5,
+          cellPadding: 6,
+          lineColor: [232, 232, 232],
+          lineWidth: 0.4,
+          valign: "top",
+          overflow: "linebreak",
+        },
+        headStyles: {
+          fillColor: [12, 17, 14],
+          textColor: 255,
+          fontStyle: "bold",
+        },
+        columnStyles: {
+          0: { cellWidth: contentWidth * 0.45, fontStyle: "bold" },
+          1: { cellWidth: contentWidth * 0.25, halign: "right" },
+          2: { cellWidth: contentWidth * 0.30, halign: "right" },
+        },
+        head: [["Species", "Cascade impact", "Species cascaded"]],
+        body: criticalRemovals.map((e) => [
+          e.speciesName,
+          `${e.impactPct.toFixed(1)}%`,
+          `${e.cascadeVictimCount}`,
+        ]),
       });
+      y = getLastTableY() + 16;
     }
+
     const trophicSummary: Record<string, number> = {};
     removalLog.forEach((e) => { trophicSummary[e.trophicLevel] = (trophicSummary[e.trophicLevel] || 0) + 1; });
-    report += `\nRemovals by trophic level:\n`;
-    Object.entries(trophicSummary).sort(([, a], [, b]) => b - a).forEach(([level, count]) => {
-      report += `  • ${level.replace(/_/g, " ")}: ${count} removed\n`;
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin, bottom: 36 },
+      theme: "grid",
+      tableWidth: contentWidth,
+      styles: {
+        font: "times",
+        fontSize: 9.5,
+        cellPadding: 6,
+        lineColor: [232, 232, 232],
+        lineWidth: 0.4,
+      },
+      headStyles: {
+        fillColor: [12, 17, 14],
+        textColor: 255,
+        fontStyle: "bold",
+      },
+      head: [["Trophic level", "Removals"]],
+      body: Object.entries(trophicSummary)
+        .sort(([, a], [, b]) => b - a)
+        .map(([level, count]) => [level.replace(/_/g, " "), `${count}`]),
     });
+    y = getLastTableY() + 18;
 
-    report += `\n${"=".repeat(50)}\n`;
-    report += `Report generated by BioScope | bioscope.app\n`;
-    report += `Data source: iNaturalist citizen science observations\n`;
+    addSection("Conclusion");
+    addParagraph("The cascade structure shows how biological connectivity amplifies risk across trophic layers. A few highly connected taxa can act as ecological load-bearing points, so their removal produces losses far beyond the initial species.");
+    addParagraph("Preserving high-keystone taxa should therefore reduce total collapse breadth more efficiently than isolated species protection. For conservation planning, the most useful intervention is often not just protecting rare species, but protecting the interactions that keep the system coherent.");
 
-    const blob = new Blob([report], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `bioscope-cascade-report-${ecoName.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    doc.setFont("times", "italic");
+    doc.setFontSize(9);
+    doc.setTextColor(muted[0], muted[1], muted[2]);
+    const footerY = pageHeight - 28;
+    doc.text("Report generated by BioScope", margin, footerY);
+    doc.text("Data source: iNaturalist citizen science observations", pageWidth - margin, footerY, { align: "right" });
+
+    doc.save(`bioscope-cascade-report-${ecoName.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 10)}.pdf`);
   }, [removalLog, removedNodes]);
 
   const logRemoval = useCallback((removed: GraphNode, victims: GraphNode[], totalCollapsed: number, totalSpecies: number, aiText: string | null) => {
