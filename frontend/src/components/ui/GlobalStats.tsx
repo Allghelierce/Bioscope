@@ -9,9 +9,17 @@ import {
   BeakerIcon,
   GlobeAmericasIcon,
 } from "@heroicons/react/24/outline";
-import { GLOBAL_STATS, ZONE_DATA } from "@/lib/speciesData";
+import { useAppData } from "@/context/DataContext";
 
 export default function GlobalStats() {
+  const { data, loading } = useAppData();
+  
+  if (loading || !data) {
+    return <div className="grid grid-cols-3 gap-4 h-48 animate-pulse bg-white/[0.02] rounded-2xl" />;
+  }
+
+  const ZONE_DATA = data.zones;
+  const GLOBAL_STATS = data.global_stats;
   const healthyZones = ZONE_DATA.filter((z) => z.health.grade === "B").length;
   const criticalZones = ZONE_DATA.filter((z) => z.health.grade === "D" || z.health.grade === "F").length;
 

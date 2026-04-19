@@ -1,7 +1,9 @@
 "use client";
 
 import { MapContainer, TileLayer, CircleMarker, Tooltip, Rectangle } from "react-leaflet";
-import { ZONE_DATA, type Zone } from "@/lib/speciesData";
+import siteMetadata from "@/lib/siteMetadata.json";
+import type { Zone } from "@/types/data";
+const ZONE_DATA = siteMetadata.zones;
 import "leaflet/dist/leaflet.css";
 
 const LAT_MIN = 32.53, LAT_MAX = 33.22;

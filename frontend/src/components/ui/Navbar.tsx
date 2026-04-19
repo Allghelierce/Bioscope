@@ -2,9 +2,12 @@
 
 import { motion } from "framer-motion";
 import { ShieldExclamationIcon } from "@heroicons/react/24/outline";
-import { GLOBAL_STATS } from "@/lib/speciesData";
+import { useAppData } from "@/context/DataContext";
 
 export default function Navbar() {
+  const { data, loading } = useAppData();
+  const GLOBAL_STATS = data?.global_stats;
+
   return (
     <motion.nav
       initial={{ y: -20, opacity: 0 }}
@@ -29,10 +32,12 @@ export default function Navbar() {
           <a href="#map" className="text-sm text-white/60 hover:text-white transition">Health Map</a>
           <a href="#cascade" className="text-sm text-white/60 hover:text-white transition">Cascade Sim</a>
           <a href="#warnings" className="text-sm text-white/60 hover:text-white transition">Warnings</a>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
-            <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-            <span className="text-xs text-red-400">{GLOBAL_STATS.zonesAtRisk} Zones at Risk</span>
-          </div>
+          {!loading && GLOBAL_STATS && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
+              <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+              <span className="text-xs text-red-400">{GLOBAL_STATS.zonesAtRisk} Zones at Risk</span>
+            </div>
+          )}
         </div>
       </div>
     </motion.nav>

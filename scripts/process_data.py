@@ -1,6 +1,7 @@
 import csv
 import json
 import math
+import os
 from collections import Counter, defaultdict
 
 INPUT = "data/threatened_species.csv"
@@ -40,45 +41,77 @@ LNG_MIN, LNG_MAX = -117.60, -116.08
 GRID_ROWS, GRID_COLS = 7, 7
 
 ECOSYSTEM_TYPES = {
-    "Coastal Marine & Estuary": {
+    "Pacific Coast & Tidepools": {
         "zones": ["Border Field", "Imperial Beach", "Coronado", "Point Loma", "Mission Bay", "La Jolla", "Del Mar"],
-        "description": "Tidepools, salt marshes, estuaries, and nearshore marine habitats along the San Diego coastline",
-        "keywords": ["ocean", "coastal", "marine", "tidepool", "estuary", "salt marsh", "beach", "shore", "sea", "kelp", "reef"],
+        "description": "San Diego's 70-mile coastline — tidepools, kelp forests, salt marshes, and coastal bluffs from the Tijuana Estuary to Torrey Pines",
+        "keywords": ["ocean", "coastal", "marine", "tidepool", "beach", "shore", "sea", "kelp", "reef", "surf", "pier",
+                      "pacific beach", "ocean beach", "la jolla shores", "torrey pines", "blacks beach", "windansea",
+                      "sunset cliffs", "cabrillo", "shelter island", "harbor", "bay", "seaworld", "fiesta island",
+                      "mission beach", "bird rock", "children's pool", "scripps pier", "del mar beach"],
     },
-    "Coastal Sage Scrub": {
+    "Coastal Sage & Mesa": {
         "zones": ["Otay Mesa", "Chula Vista", "National City", "Spring Valley", "Mission Valley", "Balboa Park", "Miramar"],
-        "description": "Low-elevation scrubland dominated by aromatic shrubs — California's most endangered habitat",
-        "keywords": ["sage", "scrub", "chaparral lowland", "urban edge", "suburban", "coastal scrub"],
+        "description": "San Diego's endangered coastal sage scrub — low aromatic shrubs on mesas and terraces, home to the California gnatcatcher",
+        "keywords": ["sage", "scrub", "mesa", "otay", "chula vista", "national city", "spring valley", "sweetwater",
+                      "bonita", "eastlake", "otay ranch", "rolling hills", "paradise hills", "encanto",
+                      "lincoln park", "southeast sd", "logan heights", "barrio logan", "sherman heights",
+                      "kensington", "talmadge", "city heights", "college area", "sdsu", "del cerro"],
     },
-    "Chaparral & Grassland": {
+    "Chaparral & Canyons": {
         "zones": ["Jamul", "Alpine", "Santee", "Mission Trails", "Poway", "Scripps Ranch", "Rancho Santa Fe", "Carmel Valley"],
-        "description": "Dense, fire-adapted shrubland and native grassland at mid-elevations",
-        "keywords": ["chaparral", "grassland", "fire", "shrub", "hillside", "canyon", "brush", "manzanita"],
+        "description": "Fire-adapted chaparral covering San Diego's inland hills and canyon systems — dense shrubland with seasonal wildflower blooms",
+        "keywords": ["chaparral", "canyon", "hills", "brush", "fire", "trail", "hiking",
+                      "mission trails", "cowles mountain", "fortuna mountain", "poway", "iron mountain",
+                      "lake poway", "santee", "mission gorge", "tierrasanta", "scripps ranch",
+                      "rancho penasquitos", "black mountain", "torrey highlands", "4s ranch", "santaluz",
+                      "carmel valley", "del mar heights", "los penasquitos canyon", "rose canyon",
+                      "tecolote canyon", "bressi ranch", "pacific highlands ranch"],
     },
-    "Mountain Forest": {
+    "Cuyamaca & Laguna Mountains": {
         "zones": ["Otay Mountain", "Pine Valley", "Mount Laguna", "Cuyamaca", "Julian", "Palomar Mountain", "Palomar East"],
-        "description": "Conifer and mixed forests at high elevations with cooler, wetter conditions",
-        "keywords": ["mountain", "forest", "pine", "oak", "conifer", "alpine", "woodland", "elevation", "montane"],
+        "description": "San Diego's mountain backbone — mixed conifer forests, oak woodlands, and alpine meadows from Cuyamaca Peak to Palomar Observatory",
+        "keywords": ["mountain", "forest", "pine", "oak", "conifer", "woodland", "elevation",
+                      "cuyamaca", "julian", "mount laguna", "palomar", "sunrise highway",
+                      "stonewall peak", "green valley falls", "william heise", "volcan mountain",
+                      "hot springs mountain", "pine valley", "descanso", "guatay", "mount woodson",
+                      "observatory", "doane valley", "boucher hill"],
     },
-    "Desert & Arid Scrub": {
+    "Anza-Borrego Desert": {
         "zones": ["Anza-Borrego South", "Anza-Borrego Central", "Anza-Borrego North", "Borrego Springs"],
-        "description": "Hot, arid desert with specialized drought-adapted species and ephemeral bloom events",
-        "keywords": ["desert", "arid", "anza-borrego", "borrego", "cactus", "dry", "sand", "dune", "succulent"],
+        "description": "California's largest state park in San Diego's eastern desert — slot canyons, badlands, palm oases, and spring wildflower superbloom",
+        "keywords": ["desert", "arid", "anza-borrego", "borrego", "cactus", "dry", "sand", "dune", "succulent",
+                      "borrego springs", "fonts point", "badlands", "slot canyon", "palm canyon",
+                      "the narrows", "wind caves", "elephant trees", "ocotillo", "superbloom",
+                      "galleta meadows", "sculptures", "clark dry lake", "coyote canyon",
+                      "hellhole canyon", "yaqui pass", "scissors crossing"],
     },
-    "Inland Valley & Riparian": {
+    "San Diego River & Inland Valleys": {
         "zones": ["Ramona", "San Pasqual", "Santa Ysabel", "Valley Center", "Escondido", "Rancho Bernardo", "El Cajon"],
-        "description": "River corridors, seasonal streams, and agricultural valleys supporting riparian woodland",
-        "keywords": ["river", "stream", "riparian", "creek", "valley", "wetland", "lake", "pond", "freshwater", "water"],
+        "description": "San Diego's inland valleys and riparian corridors — the San Diego River watershed, San Pasqual Valley, and agricultural lands of the backcountry",
+        "keywords": ["river", "stream", "riparian", "creek", "valley", "wetland", "lake", "pond", "freshwater",
+                      "san diego river", "san pasqual", "escondido", "rancho bernardo", "el cajon",
+                      "ramona", "lakeside", "flinn springs", "harbison canyon", "dehesa",
+                      "san vicente reservoir", "el capitan reservoir", "lake hodges", "lake wohlford",
+                      "dixon lake", "kit carson park", "daley ranch", "elfin forest",
+                      "santa ysabel", "valley center", "bonsall"],
     },
-    "Border & Transition": {
+    "South Bay & Border Lands": {
         "zones": ["Tecate", "Campo", "Jacumba", "Mountain Empire", "Temecula Border", "Fallbrook", "Vista", "San Marcos"],
-        "description": "Ecological transition zones where biomes meet — high species mixing and unique assemblages",
-        "keywords": ["border", "transition", "ecotone", "edge", "mixed", "corridor"],
+        "description": "San Diego's borderlands and transition zones — where coastal, desert, and mountain ecosystems converge with unique cross-border wildlife corridors",
+        "keywords": ["border", "transition", "south bay", "campo", "tecate", "jacumba",
+                      "fallbrook", "vista", "san marcos", "oceanside", "carlsbad",
+                      "san elijo", "batiquitos lagoon", "buena vista lagoon",
+                      "lake san marcos", "double peak", "discovery hills",
+                      "cal state san marcos", "palomar college", "temecula"],
     },
-    "Urban Parkland": {
+    "Urban Parks & Preserves": {
         "zones": ["Downtown SD", "Balboa Park", "Mission Trails", "Coronado"],
-        "description": "Urban green spaces and parks that serve as biodiversity refugia in developed areas",
-        "keywords": ["urban", "park", "city", "garden", "backyard", "developed", "neighborhood"],
+        "description": "San Diego's urban biodiversity hotspots — Balboa Park's 1,200 acres, Mission Trails Regional Park, and neighborhood green corridors",
+        "keywords": ["urban", "park", "city", "garden", "backyard", "downtown", "gaslamp",
+                      "balboa park", "zoo", "safari park", "presidio park", "old town",
+                      "hillcrest", "north park", "south park", "golden hill", "bankers hill",
+                      "little italy", "mission hills", "university heights", "normal heights",
+                      "adams avenue", "uptown", "midtown", "coronado", "hotel del"],
     },
 }
 
@@ -582,10 +615,30 @@ for eco_name, eco_info in ECOSYSTEM_TYPES.items():
         if zk in zones:
             eco_species.update(zones[zk]["species"])
 
-    # Intersect with our 150-species dependency graph
+    # Intersect with our 150-species dependency graph, cap at 30 for performance
     eco_node_ids = top_species_ids & eco_species
     if len(eco_node_ids) < 3:
         continue
+
+    # If too many, pick top 30: ensure trophic balance then fill by observation count
+    if len(eco_node_ids) > 30:
+        eco_by_level = defaultdict(list)
+        for nid in eco_node_ids:
+            node = next(n for n in dependency_nodes if n["id"] == nid)
+            eco_by_level[node["trophic_level"]].append((nid, node["observations"]))
+        for lv in eco_by_level:
+            eco_by_level[lv].sort(key=lambda x: x[1], reverse=True)
+        kept = set()
+        for lv, sps in eco_by_level.items():
+            for sp_id, _ in sps[:3]:
+                kept.add(sp_id)
+        remaining = [(nid, next(n["observations"] for n in dependency_nodes if n["id"] == nid)) for nid in eco_node_ids - kept]
+        remaining.sort(key=lambda x: x[1], reverse=True)
+        for nid, _ in remaining:
+            if len(kept) >= 30:
+                break
+            kept.add(nid)
+        eco_node_ids = kept
 
     eco_nodes = []
     for node in dependency_nodes:
@@ -699,6 +752,160 @@ print(f"Global trophic: {dict(global_trophic)}")
 
 # ─── Write Outputs ───
 
+# 1. Main App Data (Heavy datasets moved to JSON for latency/bundle size)
+app_data = {
+    "zones": zone_summaries,
+    "nodes": dependency_nodes,
+    "edges": dependency_edges,
+    "keystone_rankings": keystone_rankings,
+    "zone_keystone_rankings": zone_keystone_rankings,
+    "collapse_predictions": collapse_predictions,
+    "ecosystem_index": {name: {"description": eg["description"], "keywords": eg["keywords"], "zone_count": eg["zone_count"], "species_count": eg["species_count"], "edge_count": eg["edge_count"], "keystones": [{"common_name": k["common_name"], "zone_keystone_score": k["zone_keystone_score"]} for k in eg["keystones"]], "zones": eg["zones"]} for name, eg in ecosystem_graphs.items()},
+    "global_stats": {
+        "totalSpecies": total_species,
+        "totalObservations": total_obs,
+        "totalZones": len(zone_summaries),
+        "zonesAtRisk": len(collapse_predictions),
+        "trophicBreakdown": dict(global_trophic),
+        "healthDistribution": dict(Counter(z["health"]["grade"] for z in zone_summaries)),
+        "ecosystemCount": len(ecosystem_graphs),
+    }
+}
+
+os.makedirs("frontend/public/data", exist_ok=True)
+with open("frontend/public/data/app-data.json", "w") as f:
+    json.dump(app_data, f)
+print("Wrote frontend/public/data/app-data.json")
+
+with open("frontend/public/data/zone-graphs.json", "w") as f:
+    json.dump(zone_dependency_graphs, f)
+print("Wrote frontend/public/data/zone-graphs.json")
+
+with open("frontend/public/data/ecosystem-graphs.json", "w") as f:
+    json.dump(ecosystem_graphs, f)
+print("Wrote frontend/public/data/ecosystem-graphs.json")
+
+# 2. Lightweight TypeScript Bridge (Only types and tiny constants)
+ts_output = f'''// Auto-generated types and metadata from {INPUT}
+// Source data is fetched from /data/app-data.json to keep bundle size small.
+
+export const APP_DATA_URL = "/data/app-data.json";
+
+export interface ZoneNode {{
+  id: string;
+  common_name: string;
+  trophic_level: string;
+  observations: number;
+  decline_trend: number;
+  keystone_score: number;
+  zone_keystone_score: number;
+}}
+
+export interface DependencyNode {{
+  id: string;
+  common_name: string;
+  trophic_level: string;
+  trophic_label: string;
+  iconic_taxon: string;
+  order: string;
+  family: string;
+  observations: number;
+  zone_count: number;
+  decline_trend: number;
+  keystone_score: number;
+}}
+
+export interface DependencyEdge {{
+  source: string;
+  target: string;
+  type: string;
+  strength: number;
+}}
+
+export interface KeystoneRanking {{
+  id: string;
+  common_name: string;
+  trophic_level: string;
+  keystone_score: number;
+  decline_trend: number;
+  cascade_victims: string[];
+  cascade_victim_names: string[];
+  trophic_levels_affected: number;
+  zones_present: number;
+  observations: number;
+  priority: string;
+}}
+
+export interface ZoneKeystoneEntry {{
+  id: string;
+  common_name: string;
+  trophic_level: string;
+  zone_keystone_score: number;
+  decline_trend: number;
+  cascade_victim_count: number;
+  cascade_victim_names: string[];
+  trophic_levels_affected: number;
+  priority: "critical" | "high" | "medium" | "low";
+}}
+
+export interface EcosystemIndex {{
+  description: string;
+  keywords: string[];
+  zone_count: number;
+  species_count: number;
+  edge_count: number;
+  keystones: {{ common_name: string; zone_keystone_score: number }}[];
+  zones: {{ id: string; name: string; grade: string; score: number }}[];
+}}
+
+export interface GlobalStats {{
+  totalSpecies: number;
+  totalObservations: number;
+  totalZones: number;
+  zonesAtRisk: number;
+  trophicBreakdown: Record<string, number>;
+  healthDistribution: Record<string, number>;
+  ecosystemCount: number;
+}}
+
+export interface Zone {{
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  total_species: number;
+  total_observations: number;
+  health: {{
+    grade: string;
+    score: number;
+    risks: {{ type: string; message: string }}[];
+    trophic_completeness: number;
+    trend_pct: number;
+  }};
+  trophic: Record<string, {{ count: number; species: string[] }}>;
+  yearly_species: Record<string, number>;
+  top_families: Record<string, number>;
+}}
+
+export interface CollapsePrediction {{
+  zone: string;
+  zone_id: string;
+  grade: string;
+  score: number;
+  missing_levels: string[];
+  at_risk_species: string[];
+  risks: any[];
+}}
+'''
+
+with open(OUTPUT, "w") as f:
+    f.write(ts_output)
+
+print(f"Wrote {OUTPUT}")
+
+
+# ─── Write Additional Outputs ───
+
 # 1. Normalized JSON for Frontend (Lightweight)
 frontend_stats = {
     "global_stats": {
@@ -715,10 +922,13 @@ frontend_stats = {
         "name": z["name"],
         "lat": z["lat"],
         "lng": z["lng"],
-        "grade": z["health"]["grade"],
-        "score": z["health"]["score"],
+        "health": z["health"],
+        "trophic": z["trophic"],
         "total_species": z["total_species"],
-    } for z in zone_summaries]
+        "total_observations": z["total_observations"],
+        "yearly_species": z["yearly_species"],
+    } for z in zone_summaries],
+    "collapse_predictions": collapse_predictions
 }
 
 import os
@@ -741,7 +951,18 @@ master_species = { sid: {
 with open("frontend/src/lib/masterSpecies.json", "w") as f:
     json.dump(master_species, f, indent=2)
 
-# 3. CSVs for Snowflake Integration
+# 3. Dependency Graph Data (for CascadeGraph)
+graph_data = {
+    "nodes": dependency_nodes,
+    "edges": dependency_edges,
+    "zone_graphs": zone_dependency_graphs,
+    "keystone_rankings": keystone_rankings,
+    "zone_keystone_rankings": zone_keystone_rankings
+}
+with open("frontend/src/lib/graphData.json", "w") as f:
+    json.dump(graph_data, f, indent=2)
+
+# 4. CSVs for Snowflake Integration
 def write_csv(filename, fieldnames, data):
     with open(f"data/snowflake/{filename}", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

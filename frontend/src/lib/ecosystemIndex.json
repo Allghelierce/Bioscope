@@ -1,0 +1,686 @@
+{
+  "ecosystem_index": {
+    "Pacific Coast & Tidepools": {
+      "description": "San Diego's 70-mile coastline \u2014 tidepools, kelp forests, salt marshes, and coastal bluffs from the Tijuana Estuary to Torrey Pines",
+      "keywords": [
+        "ocean",
+        "coastal",
+        "marine",
+        "tidepool",
+        "beach",
+        "shore",
+        "sea",
+        "kelp",
+        "reef",
+        "surf",
+        "pier",
+        "pacific beach",
+        "ocean beach",
+        "la jolla shores",
+        "torrey pines",
+        "blacks beach",
+        "windansea",
+        "sunset cliffs",
+        "cabrillo",
+        "shelter island",
+        "harbor",
+        "bay",
+        "seaworld",
+        "fiesta island",
+        "mission beach",
+        "bird rock",
+        "children's pool",
+        "scripps pier",
+        "del mar beach"
+      ],
+      "zone_count": 7,
+      "species_count": 30,
+      "edge_count": 75,
+      "keystones": [
+        {
+          "common_name": "Weed's Mariposa Lily",
+          "zone_keystone_score": 0.034
+        }
+      ],
+      "zones": [
+        {
+          "id": "0-0",
+          "name": "Border Field",
+          "grade": "F",
+          "score": 34.3
+        },
+        {
+          "id": "1-0",
+          "name": "Imperial Beach",
+          "grade": "C",
+          "score": 52.7
+        },
+        {
+          "id": "2-0",
+          "name": "Coronado",
+          "grade": "C",
+          "score": 51.3
+        },
+        {
+          "id": "3-0",
+          "name": "Point Loma",
+          "grade": "C",
+          "score": 55.5
+        },
+        {
+          "id": "4-0",
+          "name": "Mission Bay",
+          "grade": "C",
+          "score": 50.1
+        },
+        {
+          "id": "5-0",
+          "name": "La Jolla",
+          "grade": "D",
+          "score": 45.9
+        },
+        {
+          "id": "6-0",
+          "name": "Del Mar",
+          "grade": "B",
+          "score": 65.0
+        }
+      ]
+    },
+    "Coastal Sage & Mesa": {
+      "description": "San Diego's endangered coastal sage scrub \u2014 low aromatic shrubs on mesas and terraces, home to the California gnatcatcher",
+      "keywords": [
+        "sage",
+        "scrub",
+        "mesa",
+        "otay",
+        "chula vista",
+        "national city",
+        "spring valley",
+        "sweetwater",
+        "bonita",
+        "eastlake",
+        "otay ranch",
+        "rolling hills",
+        "paradise hills",
+        "encanto",
+        "lincoln park",
+        "southeast sd",
+        "logan heights",
+        "barrio logan",
+        "sherman heights",
+        "kensington",
+        "talmadge",
+        "city heights",
+        "college area",
+        "sdsu",
+        "del cerro"
+      ],
+      "zone_count": 7,
+      "species_count": 30,
+      "edge_count": 87,
+      "keystones": [
+        {
+          "common_name": "Weed's Mariposa Lily",
+          "zone_keystone_score": 0.034
+        },
+        {
+          "common_name": "Woven-spored microlichen",
+          "zone_keystone_score": 0.034
+        }
+      ],
+      "zones": [
+        {
+          "id": "0-1",
+          "name": "Otay Mesa",
+          "grade": "C",
+          "score": 61.5
+        },
+        {
+          "id": "1-1",
+          "name": "Chula Vista",
+          "grade": "B",
+          "score": 67.9
+        },
+        {
+          "id": "2-1",
+          "name": "National City",
+          "grade": "B",
+          "score": 72.6
+        },
+        {
+          "id": "2-2",
+          "name": "Spring Valley",
+          "grade": "B",
+          "score": 71.0
+        },
+        {
+          "id": "3-2",
+          "name": "Mission Valley",
+          "grade": "B",
+          "score": 68.2
+        },
+        {
+          "id": "4-1",
+          "name": "Balboa Park",
+          "grade": "B",
+          "score": 72.2
+        },
+        {
+          "id": "5-1",
+          "name": "Miramar",
+          "grade": "B",
+          "score": 66.0
+        }
+      ]
+    },
+    "Chaparral & Canyons": {
+      "description": "Fire-adapted chaparral covering San Diego's inland hills and canyon systems \u2014 dense shrubland with seasonal wildflower blooms",
+      "keywords": [
+        "chaparral",
+        "canyon",
+        "hills",
+        "brush",
+        "fire",
+        "trail",
+        "hiking",
+        "mission trails",
+        "cowles mountain",
+        "fortuna mountain",
+        "poway",
+        "iron mountain",
+        "lake poway",
+        "santee",
+        "mission gorge",
+        "tierrasanta",
+        "scripps ranch",
+        "rancho penasquitos",
+        "black mountain",
+        "torrey highlands",
+        "4s ranch",
+        "santaluz",
+        "carmel valley",
+        "del mar heights",
+        "los penasquitos canyon",
+        "rose canyon",
+        "tecolote canyon",
+        "bressi ranch",
+        "pacific highlands ranch"
+      ],
+      "zone_count": 8,
+      "species_count": 30,
+      "edge_count": 92,
+      "keystones": [
+        {
+          "common_name": "Woven-spored microlichen",
+          "zone_keystone_score": 0.069
+        },
+        {
+          "common_name": "Tornleaf Goldeneye",
+          "zone_keystone_score": 0.034
+        }
+      ],
+      "zones": [
+        {
+          "id": "1-2",
+          "name": "Jamul",
+          "grade": "B",
+          "score": 75.5
+        },
+        {
+          "id": "1-3",
+          "name": "Alpine",
+          "grade": "C",
+          "score": 64.7
+        },
+        {
+          "id": "3-3",
+          "name": "Santee",
+          "grade": "B",
+          "score": 65.1
+        },
+        {
+          "id": "4-2",
+          "name": "Mission Trails",
+          "grade": "B",
+          "score": 68.0
+        },
+        {
+          "id": "4-3",
+          "name": "Poway",
+          "grade": "C",
+          "score": 64.9
+        },
+        {
+          "id": "5-2",
+          "name": "Scripps Ranch",
+          "grade": "C",
+          "score": 62.9
+        },
+        {
+          "id": "6-2",
+          "name": "Rancho Santa Fe",
+          "grade": "C",
+          "score": 62.0
+        },
+        {
+          "id": "6-1",
+          "name": "Carmel Valley",
+          "grade": "B",
+          "score": 71.3
+        }
+      ]
+    },
+    "Cuyamaca & Laguna Mountains": {
+      "description": "San Diego's mountain backbone \u2014 mixed conifer forests, oak woodlands, and alpine meadows from Cuyamaca Peak to Palomar Observatory",
+      "keywords": [
+        "mountain",
+        "forest",
+        "pine",
+        "oak",
+        "conifer",
+        "woodland",
+        "elevation",
+        "cuyamaca",
+        "julian",
+        "mount laguna",
+        "palomar",
+        "sunrise highway",
+        "stonewall peak",
+        "green valley falls",
+        "william heise",
+        "volcan mountain",
+        "hot springs mountain",
+        "pine valley",
+        "descanso",
+        "guatay",
+        "mount woodson",
+        "observatory",
+        "doane valley",
+        "boucher hill"
+      ],
+      "zone_count": 7,
+      "species_count": 30,
+      "edge_count": 76,
+      "keystones": [
+        {
+          "common_name": "Tornleaf Goldeneye",
+          "zone_keystone_score": 0.034
+        }
+      ],
+      "zones": [
+        {
+          "id": "0-2",
+          "name": "Otay Mountain",
+          "grade": "B",
+          "score": 71.0
+        },
+        {
+          "id": "1-4",
+          "name": "Pine Valley",
+          "grade": "C",
+          "score": 60.5
+        },
+        {
+          "id": "1-5",
+          "name": "Mount Laguna",
+          "grade": "D",
+          "score": 49.9
+        },
+        {
+          "id": "2-4",
+          "name": "Cuyamaca",
+          "grade": "C",
+          "score": 58.0
+        },
+        {
+          "id": "2-5",
+          "name": "Julian",
+          "grade": "C",
+          "score": 59.0
+        },
+        {
+          "id": "4-5",
+          "name": "Palomar Mountain",
+          "grade": "C",
+          "score": 59.5
+        },
+        {
+          "id": "5-6",
+          "name": "Palomar East",
+          "grade": "C",
+          "score": 51.0
+        }
+      ]
+    },
+    "Anza-Borrego Desert": {
+      "description": "California's largest state park in San Diego's eastern desert \u2014 slot canyons, badlands, palm oases, and spring wildflower superbloom",
+      "keywords": [
+        "desert",
+        "arid",
+        "anza-borrego",
+        "borrego",
+        "cactus",
+        "dry",
+        "sand",
+        "dune",
+        "succulent",
+        "borrego springs",
+        "fonts point",
+        "badlands",
+        "slot canyon",
+        "palm canyon",
+        "the narrows",
+        "wind caves",
+        "elephant trees",
+        "ocotillo",
+        "superbloom",
+        "galleta meadows",
+        "sculptures",
+        "clark dry lake",
+        "coyote canyon",
+        "hellhole canyon",
+        "yaqui pass",
+        "scissors crossing"
+      ],
+      "zone_count": 4,
+      "species_count": 29,
+      "edge_count": 14,
+      "keystones": [
+        {
+          "common_name": "Behr's Metalmark",
+          "zone_keystone_score": 0.071
+        },
+        {
+          "common_name": "Costa's Hummingbird",
+          "zone_keystone_score": 0.071
+        }
+      ],
+      "zones": [
+        {
+          "id": "1-6",
+          "name": "Anza-Borrego South",
+          "grade": "D",
+          "score": 47.7
+        },
+        {
+          "id": "2-6",
+          "name": "Anza-Borrego Central",
+          "grade": "D",
+          "score": 45.9
+        },
+        {
+          "id": "4-6",
+          "name": "Anza-Borrego North",
+          "grade": "D",
+          "score": 44.1
+        },
+        {
+          "id": "3-6",
+          "name": "Borrego Springs",
+          "grade": "D",
+          "score": 37.7
+        }
+      ]
+    },
+    "San Diego River & Inland Valleys": {
+      "description": "San Diego's inland valleys and riparian corridors \u2014 the San Diego River watershed, San Pasqual Valley, and agricultural lands of the backcountry",
+      "keywords": [
+        "river",
+        "stream",
+        "riparian",
+        "creek",
+        "valley",
+        "wetland",
+        "lake",
+        "pond",
+        "freshwater",
+        "san diego river",
+        "san pasqual",
+        "escondido",
+        "rancho bernardo",
+        "el cajon",
+        "ramona",
+        "lakeside",
+        "flinn springs",
+        "harbison canyon",
+        "dehesa",
+        "san vicente reservoir",
+        "el capitan reservoir",
+        "lake hodges",
+        "lake wohlford",
+        "dixon lake",
+        "kit carson park",
+        "daley ranch",
+        "elfin forest",
+        "santa ysabel",
+        "valley center",
+        "bonsall"
+      ],
+      "zone_count": 7,
+      "species_count": 30,
+      "edge_count": 85,
+      "keystones": [],
+      "zones": [
+        {
+          "id": "3-4",
+          "name": "Ramona",
+          "grade": "C",
+          "score": 61.5
+        },
+        {
+          "id": "4-4",
+          "name": "San Pasqual",
+          "grade": "C",
+          "score": 62.5
+        },
+        {
+          "id": "3-5",
+          "name": "Santa Ysabel",
+          "grade": "C",
+          "score": 59.0
+        },
+        {
+          "id": "5-5",
+          "name": "Valley Center",
+          "grade": "C",
+          "score": 61.8
+        },
+        {
+          "id": "5-4",
+          "name": "Escondido",
+          "grade": "C",
+          "score": 59.0
+        },
+        {
+          "id": "5-3",
+          "name": "Rancho Bernardo",
+          "grade": "C",
+          "score": 59.5
+        },
+        {
+          "id": "2-3",
+          "name": "El Cajon",
+          "grade": "C",
+          "score": 61.5
+        }
+      ]
+    },
+    "South Bay & Border Lands": {
+      "description": "San Diego's borderlands and transition zones \u2014 where coastal, desert, and mountain ecosystems converge with unique cross-border wildlife corridors",
+      "keywords": [
+        "border",
+        "transition",
+        "south bay",
+        "campo",
+        "tecate",
+        "jacumba",
+        "fallbrook",
+        "vista",
+        "san marcos",
+        "oceanside",
+        "carlsbad",
+        "san elijo",
+        "batiquitos lagoon",
+        "buena vista lagoon",
+        "lake san marcos",
+        "double peak",
+        "discovery hills",
+        "cal state san marcos",
+        "palomar college",
+        "temecula"
+      ],
+      "zone_count": 8,
+      "species_count": 30,
+      "edge_count": 75,
+      "keystones": [
+        {
+          "common_name": "Behr's Metalmark",
+          "zone_keystone_score": 0.034
+        }
+      ],
+      "zones": [
+        {
+          "id": "0-3",
+          "name": "Tecate",
+          "grade": "C",
+          "score": 64.2
+        },
+        {
+          "id": "0-4",
+          "name": "Campo",
+          "grade": "C",
+          "score": 56.0
+        },
+        {
+          "id": "0-5",
+          "name": "Jacumba",
+          "grade": "D",
+          "score": 47.0
+        },
+        {
+          "id": "0-6",
+          "name": "Mountain Empire",
+          "grade": "D",
+          "score": 42.4
+        },
+        {
+          "id": "6-6",
+          "name": "Temecula Border",
+          "grade": "C",
+          "score": 56.0
+        },
+        {
+          "id": "6-5",
+          "name": "Fallbrook",
+          "grade": "B",
+          "score": 65.5
+        },
+        {
+          "id": "6-4",
+          "name": "Vista",
+          "grade": "C",
+          "score": 64.0
+        },
+        {
+          "id": "6-3",
+          "name": "San Marcos",
+          "grade": "C",
+          "score": 61.0
+        }
+      ]
+    },
+    "Urban Parks & Preserves": {
+      "description": "San Diego's urban biodiversity hotspots \u2014 Balboa Park's 1,200 acres, Mission Trails Regional Park, and neighborhood green corridors",
+      "keywords": [
+        "urban",
+        "park",
+        "city",
+        "garden",
+        "backyard",
+        "downtown",
+        "gaslamp",
+        "balboa park",
+        "zoo",
+        "safari park",
+        "presidio park",
+        "old town",
+        "hillcrest",
+        "north park",
+        "south park",
+        "golden hill",
+        "bankers hill",
+        "little italy",
+        "mission hills",
+        "university heights",
+        "normal heights",
+        "adams avenue",
+        "uptown",
+        "midtown",
+        "coronado",
+        "hotel del"
+      ],
+      "zone_count": 4,
+      "species_count": 30,
+      "edge_count": 87,
+      "keystones": [
+        {
+          "common_name": "Weed's Mariposa Lily",
+          "zone_keystone_score": 0.034
+        },
+        {
+          "common_name": "Woven-spored microlichen",
+          "zone_keystone_score": 0.034
+        }
+      ],
+      "zones": [
+        {
+          "id": "3-1",
+          "name": "Downtown SD",
+          "grade": "B",
+          "score": 71.5
+        },
+        {
+          "id": "4-1",
+          "name": "Balboa Park",
+          "grade": "B",
+          "score": 72.2
+        },
+        {
+          "id": "4-2",
+          "name": "Mission Trails",
+          "grade": "B",
+          "score": 68.0
+        },
+        {
+          "id": "2-0",
+          "name": "Coronado",
+          "grade": "C",
+          "score": 51.3
+        }
+      ]
+    }
+  },
+  "global_stats": {
+    "totalSpecies": 505,
+    "totalObservations": 77101,
+    "totalZones": 49,
+    "zonesAtRisk": 9,
+    "trophicBreakdown": {
+      "producer": 264,
+      "apex_predator": 42,
+      "tertiary_consumer": 103,
+      "primary_consumer": 39,
+      "pollinator": 30,
+      "secondary_consumer": 20,
+      "decomposer": 7
+    },
+    "healthDistribution": {
+      "F": 1,
+      "C": 26,
+      "B": 14,
+      "D": 8
+    },
+    "ecosystemCount": 8
+  }
+}

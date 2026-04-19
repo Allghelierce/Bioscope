@@ -2,34 +2,29 @@
 
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  KEYSTONE_RANKINGS,
-  ZONE_KEYSTONE_RANKINGS,
-  ZONE_DATA,
-  DEPENDENCY_NODES,
-  type ZoneKeystoneEntry,
-} from "@/lib/speciesData";
+import { useAppData } from "@/context/DataContext";
 
-type GlobalEntry = (typeof KEYSTONE_RANKINGS)[number];
+type GlobalEntry = any; // Will be typed from data
+interface ZoneKeystoneEntry {
+  id: string;
+  common_name: string;
+  trophic_level: string;
+  zone_keystone_score: number;
+  decline_trend: number;
+  cascade_victim_count: number;
+  cascade_victim_names: string[];
+  trophic_levels_affected: number;
+  priority: string;
+}
 
 const TROPHIC_COLORS: Record<string, string> = {
-  producer: "text-emerald-400",
-  pollinator: "text-pink-400",
-  primary_consumer: "text-amber-400",
-  secondary_consumer: "text-cyan-400",
-  tertiary_consumer: "text-indigo-400",
-  apex_predator: "text-red-400",
-  decomposer: "text-violet-400",
-};
-
-const TROPHIC_BG: Record<string, string> = {
-  producer: "bg-emerald-400/10 border-emerald-400/20",
-  pollinator: "bg-pink-400/10 border-pink-400/20",
-  primary_consumer: "bg-amber-400/10 border-amber-400/20",
-  secondary_consumer: "bg-cyan-400/10 border-cyan-400/20",
-  tertiary_consumer: "bg-indigo-400/10 border-indigo-400/20",
-  apex_predator: "bg-red-400/10 border-red-400/20",
-  decomposer: "bg-violet-400/10 border-violet-400/20",
+  producer: "text-white/50",
+  pollinator: "text-white/50",
+  primary_consumer: "text-white/50",
+  secondary_consumer: "text-white/50",
+  tertiary_consumer: "text-white/50",
+  apex_predator: "text-white/60",
+  decomposer: "text-white/50",
 };
 
 interface NormalizedEntry {
@@ -73,47 +68,47 @@ function normalizeZone(e: ZoneKeystoneEntry, totalSpeciesInZone: number): Normal
 }
 
 export default function ConservationReport() {
+  const { data, loading } = useAppData();
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
 
-  const selectedZone = selectedZoneId
-    ? ZONE_DATA.find((z) => z.id === selectedZoneId)
-    : null;
+  const ZONE_DATA = data?.zones ?? [];
+  const KEYSTONE_RANKINGS = data?.keystone_rankings ?? [];
+  const ZONE_KEYSTONE_RANKINGS = data?.zone_keystone_rankings ?? {};
 
   const rankings: NormalizedEntry[] = useMemo(() => {
+    if (!data) return [];
     if (selectedZoneId && ZONE_KEYSTONE_RANKINGS[selectedZoneId]) {
       const zone = ZONE_DATA.find((z) => z.id === selectedZoneId);
-      const totalSpecies = zone?.total_species ?? DEPENDENCY_NODES.length;
-      return ZONE_KEYSTONE_RANKINGS[selectedZoneId].map((e) =>
+      const totalSpecies = zone?.total_species ?? data.nodes.length;
+      return ZONE_KEYSTONE_RANKINGS[selectedZoneId].map((e: ZoneKeystoneEntry) =>
         normalizeZone(e, totalSpecies)
       );
     }
     return KEYSTONE_RANKINGS.map(normalizeGlobal);
-  }, [selectedZoneId]);
+  }, [selectedZoneId, data]);
+
+  if (loading) {
+    return (
+      <div className="animate-pulse space-y-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-10 bg-white/[0.02] rounded-lg" />
+        ))}
+      </div>
+    );
+  }
 
   const top5 = rankings.slice(0, 5);
   const criticalSpecies = rankings.filter((s) => s.priority === "critical" || (s.priority === "high" && s.declineTrend < -20));
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.5 }}
-      className="glass rounded-2xl p-6"
-    >
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
-        <div>
-          <h3 className="text-lg font-semibold">Conservation Priority Report</h3>
-          <p className="text-sm text-white/40 mt-1">
-            Species ranked by cascade impact — those the ecosystem can&apos;t afford to lose
-          </p>
-        </div>
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <select
           value={selectedZoneId ?? ""}
           onChange={(e) => setSelectedZoneId(e.target.value || null)}
-          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none focus:border-white/20 min-w-[180px]"
+          className="bg-white/[0.02] border border-white/[0.05] px-3 py-2 text-[10px] text-white/30 focus:outline-none focus:border-emerald-500/15 min-w-[160px] font-mono"
         >
-          <option value="">All Zones (Global)</option>
+          <option value="">All zones</option>
           {ZONE_DATA.map((z) => (
             <option key={z.id} value={z.id}>
               {z.name}
@@ -123,35 +118,18 @@ export default function ConservationReport() {
       </div>
 
       {criticalSpecies.length > 0 && (
-        <div className="mb-6 rounded-xl bg-red-500/5 border border-red-500/15 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-            <span className="text-sm font-semibold text-red-400">
-              Risk Assessment — {criticalSpecies.length} Critical Priority
-              {criticalSpecies.length !== 1 ? " Species" : ""}
-            </span>
+        <div className="mb-4 border border-red-500/[0.06] p-3">
+          <div className="text-[9px] text-red-400/40 uppercase tracking-widest font-mono mb-2">
+            {criticalSpecies.length} critical
           </div>
-          <div className="space-y-2">
-            {criticalSpecies.slice(0, 5).map((s) => (
-              <div key={s.id} className="flex items-start gap-3 text-sm">
-                <span className="shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-300 border border-red-500/20">
-                  Critical
-                </span>
-                <span className="text-white/70">
-                  Loss of{" "}
-                  <span className="text-white font-medium">{s.common_name || s.id}</span>
-                  {" "}would collapse{" "}
-                  <span className="text-red-300 font-medium">{s.speciesLost} species</span>
-                  {" "}across{" "}
-                  <span className="text-red-300 font-medium">
-                    {s.trophicLevelsAffected} trophic level{s.trophicLevelsAffected !== 1 ? "s" : ""}
-                  </span>
-                  {s.declineTrend < 0 && (
-                    <span className="text-red-400">
-                      {" "}— already declining {Math.abs(s.declineTrend).toFixed(0)}% YoY
-                    </span>
-                  )}
-                </span>
+          <div className="space-y-1.5">
+            {criticalSpecies.slice(0, 3).map((s) => (
+              <div key={s.id} className="text-[10px] text-white/30">
+                <span className="text-white/50">{s.common_name || s.id}</span>
+                {" "}&mdash; {s.speciesLost} species, {s.trophicLevelsAffected} levels
+                {s.declineTrend < 0 && (
+                  <span className="text-red-400/30 font-mono"> {Math.abs(s.declineTrend).toFixed(0)}%&darr;</span>
+                )}
               </div>
             ))}
           </div>
@@ -159,17 +137,16 @@ export default function ConservationReport() {
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-xs">
           <thead>
-            <tr className="text-left text-white/30 text-xs uppercase tracking-wider border-b border-white/5">
-              <th className="pb-3 pr-4 w-8">#</th>
-              <th className="pb-3 pr-4">Species</th>
-              <th className="pb-3 pr-4">Role</th>
-              <th className="pb-3 pr-4 text-right">Cascade Impact</th>
-              <th className="pb-3 pr-4 text-right">Species Lost</th>
-              <th className="pb-3 pr-4 text-right">Levels Hit</th>
-              <th className="pb-3 pr-4 text-right">Trend</th>
-              <th className="pb-3 text-right">Status</th>
+            <tr className="text-left text-white/12 text-[9px] uppercase tracking-widest border-b border-white/[0.04] font-mono">
+              <th className="pb-2 pr-4 w-6">#</th>
+              <th className="pb-2 pr-4">Species</th>
+              <th className="pb-2 pr-4">Role</th>
+              <th className="pb-2 pr-4 text-right">Impact</th>
+              <th className="pb-2 pr-4 text-right">Lost</th>
+              <th className="pb-2 pr-4 text-right">Trend</th>
+              <th className="pb-2 text-right">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -183,71 +160,40 @@ export default function ConservationReport() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 10 }}
                     transition={{ delay: i * 0.05 }}
-                    className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition"
+                    className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition"
                   >
-                    <td className="py-3 pr-4 text-white/20 font-mono">{i + 1}</td>
-                    <td className="py-3 pr-4">
-                      <div>
-                        <span className="text-white font-medium">{entry.common_name || entry.id}</span>
-                        {entry.common_name && (
-                          <span className="block text-[11px] text-white/30 italic">{entry.id}</span>
-                        )}
-                      </div>
+                    <td className="py-2.5 pr-4 text-white/10 font-mono text-[10px]">{i + 1}</td>
+                    <td className="py-2.5 pr-4">
+                      <span className="text-white/50 text-[11px]">{entry.common_name || entry.id}</span>
+                      {entry.common_name && (
+                        <span className="block text-[9px] text-white/12 italic font-mono">{entry.id}</span>
+                      )}
                     </td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium capitalize border ${
-                          TROPHIC_BG[entry.trophic_level] ?? "bg-white/5 border-white/10"
-                        } ${TROPHIC_COLORS[entry.trophic_level] ?? "text-white/50"}`}
-                      >
+                    <td className="py-2.5 pr-4">
+                      <span className="text-[9px] text-white/20 font-mono capitalize">
                         {entry.trophic_level.replace(/_/g, " ")}
                       </span>
                     </td>
-                    <td className="py-3 pr-4 text-right">
-                      <span
-                        className={`font-mono font-semibold ${
-                          entry.cascadeImpactPct >= 5
-                            ? "text-red-400"
-                            : entry.cascadeImpactPct >= 2
-                            ? "text-orange-400"
-                            : "text-amber-400"
-                        }`}
-                      >
+                    <td className="py-2.5 pr-4 text-right">
+                      <span className={`font-mono text-[10px] ${entry.cascadeImpactPct >= 5 ? "text-white/60" : "text-white/25"}`}>
                         {entry.cascadeImpactPct.toFixed(1)}%
                       </span>
                     </td>
-                    <td className="py-3 pr-4 text-right text-white/60 font-mono">
+                    <td className="py-2.5 pr-4 text-right text-white/20 font-mono text-[10px]">
                       {entry.speciesLost}
                     </td>
-                    <td className="py-3 pr-4 text-right text-white/60 font-mono">
-                      {entry.trophicLevelsAffected}
-                    </td>
-                    <td className="py-3 pr-4 text-right">
-                      <span
-                        className={`font-mono text-xs ${
-                          entry.declineTrend < 0 ? "text-red-400" : entry.declineTrend > 0 ? "text-emerald-400" : "text-white/20"
-                        }`}
-                      >
-                        {entry.declineTrend > 0 ? "+" : ""}
-                        {entry.declineTrend.toFixed(0)}%
+                    <td className="py-2.5 pr-4 text-right">
+                      <span className={`font-mono text-[10px] ${entry.declineTrend < 0 ? "text-red-400/40" : "text-white/15"}`}>
+                        {entry.declineTrend > 0 ? "+" : ""}{entry.declineTrend.toFixed(0)}%
                       </span>
                     </td>
-                    <td className="py-3 text-right">
+                    <td className="py-2.5 text-right">
                       {isCritical ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-300 border border-red-500/20">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-                          Critical
-                        </span>
+                        <span className="text-[8px] text-red-400/40 font-mono uppercase tracking-widest">crit</span>
                       ) : entry.priority === "high" ? (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider bg-orange-500/15 text-orange-300 border border-orange-500/15">
-                          Keystone
-                        </span>
-                      ) : entry.priority === "medium" ? (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider bg-amber-500/10 text-amber-300/60 border border-amber-500/10">
-                          Monitor
-                        </span>
+                        <span className="text-[8px] text-white/20 font-mono uppercase tracking-widest">key</span>
                       ) : (
-                        <span className="text-white/20 text-xs">—</span>
+                        <span className="text-white/8 text-[10px] font-mono">&mdash;</span>
                       )}
                     </td>
                   </motion.tr>
@@ -258,50 +204,9 @@ export default function ConservationReport() {
         </table>
       </div>
 
-      {top5.length > 0 && (
-        <div className="mt-6 space-y-2">
-          <h4 className="text-xs uppercase tracking-wider text-white/30 mb-3">
-            Impact Narratives
-          </h4>
-          {top5.map((entry) => (
-            <div
-              key={entry.id}
-              className="flex items-start gap-2 text-sm text-white/50"
-            >
-              <span className="text-white/15 mt-0.5">›</span>
-              <span>
-                Loss of{" "}
-                <span className={`font-medium ${TROPHIC_COLORS[entry.trophic_level] ?? "text-white"}`}>
-                  {entry.common_name || entry.id}
-                </span>
-                {" "}would collapse{" "}
-                <span className="text-white/80 font-medium">
-                  {entry.speciesLost} species
-                </span>
-                {entry.victimNames.length > 0 && (
-                  <span className="text-white/40">
-                    {" "}({entry.victimNames.slice(0, 3).join(", ")}
-                    {entry.victimNames.length > 3 ? `, +${entry.victimNames.length - 3} more` : ""})
-                  </span>
-                )}
-                {" "}across{" "}
-                <span className="text-white/80 font-medium">
-                  {entry.trophicLevelsAffected} trophic level{entry.trophicLevelsAffected !== 1 ? "s" : ""}
-                </span>
-                {" "}— {entry.cascadeImpactPct.toFixed(1)}% of{" "}
-                {selectedZone ? selectedZone.name + "'s" : "the"} ecosystem.
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-4 text-xs text-white/20 text-right">
-        {rankings.length} species analyzed
-        {selectedZone ? ` in ${selectedZone.name}` : " globally"}
-        {" · "}
-        {criticalSpecies.length} critical priority
+      <div className="mt-4 text-[9px] text-white/8 text-right font-mono">
+        {rankings.length} analyzed &middot; {criticalSpecies.length} critical
       </div>
-    </motion.div>
+    </div>
   );
 }

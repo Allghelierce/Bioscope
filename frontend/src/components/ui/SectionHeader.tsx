@@ -12,14 +12,14 @@ export default function SectionHeader({ title, subtitle, id }: Props) {
   return (
     <motion.div
       id={id}
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.3 }}
       className="mb-6 scroll-mt-24"
     >
-      <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{title}</h2>
-      {subtitle && <p className="text-white/40 mt-1">{subtitle}</p>}
+      <h2 className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/40">{title}</h2>
+      {subtitle && <p className="text-white/15 text-xs mt-1">{subtitle}</p>}
     </motion.div>
   );
 }
