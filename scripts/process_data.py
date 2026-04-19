@@ -563,8 +563,8 @@ print(f"  GloBI: {len(seen_edges)} real edges from {len(globi_species_with_edges
 # ─── Synthetic fallback for species without GloBI data ───
 print("\nBuilding synthetic edges for species without GloBI data...")
 synthetic_count = 0
-MAX_INCOMING = 3
-MAX_OUTGOING = 4
+MAX_INCOMING = 5
+MAX_OUTGOING = 8
 
 outgoing_count = defaultdict(int)
 for e in dependency_edges:
@@ -599,11 +599,10 @@ for chain in DEPENDENCY_CHAINS:
                 continue
             fn_zones = species_zones[fn["id"]]
             overlap = len(fn_zones & tn_zones)
-            if overlap > 0:
-                zone_score = overlap / max(zone_count, 1)
-                family_bonus = 0.3 if all_species.get(fn["id"], {}).get("family", "") == tn_family else 0
-                score = round(zone_score + family_bonus, 2)
-                candidates.append((fn, score, overlap))
+            zone_score = overlap / max(zone_count, 1) if overlap > 0 else 0.1
+            family_bonus = 0.3 if all_species.get(fn["id"], {}).get("family", "") == tn_family else 0
+            score = round(zone_score + family_bonus, 2)
+            candidates.append((fn, score, overlap))
 
         candidates.sort(key=lambda x: x[1], reverse=True)
         for fn, score, overlap in candidates[:need]:
@@ -624,7 +623,7 @@ print(f"  Total edges: {len(dependency_edges)}")
 
 
 # ─── Keystone score computation ───
-def compute_cascade_victims(removed_id, nodes, edges, threshold=0.4):
+def compute_cascade_victims(removed_id, nodes, edges, threshold=0.6):
     """Cascade with strength-weighted dependency.
     A species collapses if surviving food sources provide less than threshold
     of its original total incoming strength."""

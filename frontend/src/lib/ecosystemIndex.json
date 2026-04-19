@@ -35,27 +35,27 @@
       ],
       "zone_count": 7,
       "species_count": 155,
-      "edge_count": 103,
+      "edge_count": 161,
       "keystones": [
         {
-          "common_name": "Green Abalone",
-          "zone_keystone_score": 0.045
-        },
-        {
           "common_name": "Giant Sphinx",
-          "zone_keystone_score": 0.032
+          "zone_keystone_score": 0.097
         },
         {
-          "common_name": "Costa's Hummingbird",
-          "zone_keystone_score": 0.013
+          "common_name": "Green Abalone",
+          "zone_keystone_score": 0.058
+        },
+        {
+          "common_name": "California Dogface",
+          "zone_keystone_score": 0.058
         },
         {
           "common_name": "Southern California Shoulderband",
-          "zone_keystone_score": 0.013
+          "zone_keystone_score": 0.039
         },
         {
-          "common_name": "Least Sandpiper",
-          "zone_keystone_score": 0.006
+          "common_name": "Gabb's Checkerspot",
+          "zone_keystone_score": 0.026
         }
       ],
       "zones": [
@@ -134,27 +134,27 @@
       ],
       "zone_count": 7,
       "species_count": 175,
-      "edge_count": 122,
+      "edge_count": 225,
       "keystones": [
         {
+          "common_name": "Western Spadefoot",
+          "zone_keystone_score": 0.057
+        },
+        {
           "common_name": "Green Abalone",
-          "zone_keystone_score": 0.029
+          "zone_keystone_score": 0.034
         },
         {
-          "common_name": "",
-          "zone_keystone_score": 0.029
-        },
-        {
-          "common_name": "Costa's Hummingbird",
-          "zone_keystone_score": 0.011
+          "common_name": "Green Sea Turtle",
+          "zone_keystone_score": 0.023
         },
         {
           "common_name": "Western Tidal Flat Tiger Beetle",
-          "zone_keystone_score": 0.011
+          "zone_keystone_score": 0.023
         },
         {
           "common_name": "Western Beach Tiger Beetle",
-          "zone_keystone_score": 0.006
+          "zone_keystone_score": 0.017
         }
       ],
       "zones": [
@@ -237,26 +237,26 @@
       ],
       "zone_count": 8,
       "species_count": 175,
-      "edge_count": 136,
+      "edge_count": 235,
       "keystones": [
         {
+          "common_name": "Woven-spored microlichen",
+          "zone_keystone_score": 0.184
+        },
+        {
+          "common_name": "Powdery Sea-Fog Lichen",
+          "zone_keystone_score": 0.046
+        },
+        {
           "common_name": "",
-          "zone_keystone_score": 0.023
+          "zone_keystone_score": 0.04
         },
         {
           "common_name": "Green Abalone",
           "zone_keystone_score": 0.017
         },
         {
-          "common_name": "Arroyo Toad",
-          "zone_keystone_score": 0.017
-        },
-        {
-          "common_name": "Costa's Hummingbird",
-          "zone_keystone_score": 0.011
-        },
-        {
-          "common_name": "Large-blotched Ensatina",
+          "common_name": "Western Spadefoot",
           "zone_keystone_score": 0.011
         }
       ],
@@ -341,27 +341,27 @@
       ],
       "zone_count": 7,
       "species_count": 175,
-      "edge_count": 140,
+      "edge_count": 239,
       "keystones": [
         {
           "common_name": "Wavy Cap",
-          "zone_keystone_score": 0.029
+          "zone_keystone_score": 0.04
+        },
+        {
+          "common_name": "Gorgon Copper",
+          "zone_keystone_score": 0.034
         },
         {
           "common_name": "Sonoran Blue",
+          "zone_keystone_score": 0.034
+        },
+        {
+          "common_name": "California Dogface",
+          "zone_keystone_score": 0.029
+        },
+        {
+          "common_name": "Western Spadefoot",
           "zone_keystone_score": 0.023
-        },
-        {
-          "common_name": "Arroyo Toad",
-          "zone_keystone_score": 0.017
-        },
-        {
-          "common_name": "Costa's Hummingbird",
-          "zone_keystone_score": 0.011
-        },
-        {
-          "common_name": "Green Abalone",
-          "zone_keystone_score": 0.011
         }
       ],
       "zones": [
@@ -441,27 +441,27 @@
       ],
       "zone_count": 4,
       "species_count": 63,
-      "edge_count": 20,
+      "edge_count": 30,
       "keystones": [
         {
-          "common_name": "Loki Hairstreak",
+          "common_name": "Cobwebby Thistle",
+          "zone_keystone_score": 0.065
+        },
+        {
+          "common_name": "goldenbowl mariposa lily",
+          "zone_keystone_score": 0.065
+        },
+        {
+          "common_name": "Southern California clematis",
           "zone_keystone_score": 0.048
         },
         {
-          "common_name": "Costa's Hummingbird",
-          "zone_keystone_score": 0.032
+          "common_name": "Tricolored Blackbird",
+          "zone_keystone_score": 0.048
         },
         {
           "common_name": "Desert Bighorn Sheep",
-          "zone_keystone_score": 0.032
-        },
-        {
-          "common_name": "Tricolored Blackbird",
-          "zone_keystone_score": 0.016
-        },
-        {
-          "common_name": "Mojave Desert Tortoise",
-          "zone_keystone_score": 0.016
+          "zone_keystone_score": 0.048
         }
       ],
       "zones": [
@@ -527,27 +527,27 @@
       ],
       "zone_count": 7,
       "species_count": 175,
-      "edge_count": 144,
+      "edge_count": 253,
       "keystones": [
         {
           "common_name": "Smoky Arrowhead Blue",
-          "zone_keystone_score": 0.023
+          "zone_keystone_score": 0.057
         },
         {
-          "common_name": "Costa's Hummingbird",
-          "zone_keystone_score": 0.011
-        },
-        {
-          "common_name": "Large-blotched Ensatina",
-          "zone_keystone_score": 0.011
-        },
-        {
-          "common_name": "Arroyo Toad",
-          "zone_keystone_score": 0.011
+          "common_name": "Western Spadefoot",
+          "zone_keystone_score": 0.052
         },
         {
           "common_name": "Leanira Checkerspot",
-          "zone_keystone_score": 0.011
+          "zone_keystone_score": 0.023
+        },
+        {
+          "common_name": "Lilac-crowned Amazon",
+          "zone_keystone_score": 0.006
+        },
+        {
+          "common_name": "Hermes Copper",
+          "zone_keystone_score": 0.006
         }
       ],
       "zones": [
@@ -621,26 +621,26 @@
       ],
       "zone_count": 8,
       "species_count": 175,
-      "edge_count": 128,
+      "edge_count": 222,
       "keystones": [
         {
           "common_name": "",
-          "zone_keystone_score": 0.046
+          "zone_keystone_score": 0.149
         },
         {
-          "common_name": "Sonoran Blue",
-          "zone_keystone_score": 0.017
+          "common_name": "Western Spadefoot",
+          "zone_keystone_score": 0.057
         },
         {
-          "common_name": "Costa's Hummingbird",
-          "zone_keystone_score": 0.011
+          "common_name": "Mallow Scrub-Hairstreak",
+          "zone_keystone_score": 0.023
         },
         {
-          "common_name": "Large-blotched Ensatina",
-          "zone_keystone_score": 0.011
+          "common_name": "Tricolored Blackbird",
+          "zone_keystone_score": 0.006
         },
         {
-          "common_name": "Greater Yellowlegs",
+          "common_name": "Desert Bighorn Sheep",
           "zone_keystone_score": 0.006
         }
       ],
@@ -727,27 +727,27 @@
       ],
       "zone_count": 4,
       "species_count": 175,
-      "edge_count": 144,
+      "edge_count": 259,
       "keystones": [
         {
-          "common_name": "Green Abalone",
-          "zone_keystone_score": 0.029
+          "common_name": "Western Spadefoot",
+          "zone_keystone_score": 0.063
         },
         {
           "common_name": "",
-          "zone_keystone_score": 0.029
+          "zone_keystone_score": 0.04
         },
         {
-          "common_name": "Arroyo Toad",
-          "zone_keystone_score": 0.017
+          "common_name": "Green Abalone",
+          "zone_keystone_score": 0.034
         },
         {
-          "common_name": "Costa's Hummingbird",
-          "zone_keystone_score": 0.011
+          "common_name": "Green Sea Turtle",
+          "zone_keystone_score": 0.023
         },
         {
-          "common_name": "Western Beach Tiger Beetle",
-          "zone_keystone_score": 0.011
+          "common_name": "Giant Sphinx",
+          "zone_keystone_score": 0.023
         }
       ],
       "zones": [
