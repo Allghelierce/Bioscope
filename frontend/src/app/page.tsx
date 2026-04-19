@@ -249,11 +249,6 @@ export default function Home() {
         </section>
 
         <section>
-          <SectionHeader
-            id="cascade"
-            title="Food Web"
-            subtitle={`Species dependencies in ${SHORT_LABELS[selectedEcosystem] || selectedEcosystem}`}
-          />
           <CascadeGraph ecosystem={selectedEcosystem} />
         </section>
 
