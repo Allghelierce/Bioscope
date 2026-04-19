@@ -212,7 +212,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
       });
       const data = await res.json();
       const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      if (answer && ECOSYSTEM_INDEX[answer]) { setSelectedEcosystem(answer); setShowEcoBrowser(false); }
+      if (answer && ecosystemIndex[answer]) { setSelectedEcosystem(answer); setShowEcoBrowser(false); }
     } catch { /* fallback */ }
     setAiSearching(false);
   }, []);
@@ -303,13 +303,13 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     const nodeMap = new Map(sNodes.map((n) => [n.data.id, n]));
     const sLinks: SimLink[] = graphEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => ({ source: nodeMap.get(e.source)!, target: nodeMap.get(e.target)!, edgeType: e.type })).filter((l) => l.source && l.target);
     const sim = forceSimulation<SimNode>(sNodes)
-      .force("link", forceLink<SimNode, SimLink>(sLinks).id((d) => d.data.id).distance(100).strength(0.12))
-      .force("charge", forceManyBody<SimNode>().strength(-120).distanceMax(350))
+      .force("link", forceLink<SimNode, SimLink>(sLinks).id((d) => d.data.id).distance(120).strength(0.12))
+      .force("charge", forceManyBody<SimNode>().strength(-180).distanceMax(400))
       .force("center", forceCenter(dims.w / 2, dims.h / 2).strength(0.015))
-      .force("collide", forceCollide<SimNode>().radius((d) => d.radius + 14).strength(0.7))
-      .force("x", forceX<SimNode>(dims.w / 2).strength(0.012))
-      .force("y", forceY<SimNode>(dims.h / 2).strength(0.012))
-      .alphaDecay(0.05).velocityDecay(0.6);
+      .force("collide", forceCollide<SimNode>().radius((d) => d.radius + 18).strength(0.6).iterations(1))
+      .force("x", forceX<SimNode>(dims.w / 2).strength(0.01))
+      .force("y", forceY<SimNode>(dims.h / 2).strength(0.01))
+      .alphaDecay(0.07).velocityDecay(0.6);
     if (hasExisting) sim.alpha(0.12).alphaTarget(0);
     simRef.current = sim;
     const tick = () => {
@@ -325,7 +325,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
   const zoomRef = useRef<ReturnType<typeof d3Zoom<SVGSVGElement, unknown>> | null>(null);
   useEffect(() => {
     const svg = svgRef.current; if (!svg) return;
-    const zb = d3Zoom<SVGSVGElement, unknown>().scaleExtent([0.2, 5]).filter((e) => e.type !== "wheel").on("zoom", (e) => { transformRef.current = e.transform; setTransform(e.transform); });
+    const zb = d3Zoom<SVGSVGElement, unknown>().scaleExtent([0.2, 5]).on("zoom", (e) => { transformRef.current = e.transform; setTransform(e.transform); });
     zoomRef.current = zb; select(svg).call(zb); select(svg).on("dblclick.zoom", null);
     return () => { select(svg).on(".zoom", null); };
   }, []);
@@ -380,6 +380,8 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
       </div>
     );
   }
+
+  return (
     <motion.div ref={containerRef} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="glass rounded-2xl p-6">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
         <div>
@@ -497,8 +499,22 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                 const isAnimVictim = animatedVictims.has(node.data.id); const isDeclining = node.data.decline_trend < -30;
                 const dimmed = activeId && !isHovered && !isSelected && !isConnected && !isCascadeVictim;
                 const r = isHovered || isSelected ? node.radius + 6 : node.radius + 2;
+                let rippleX = 0, rippleY = 0;
+                if (hoveredNode && !isHovered) {
+                  const hNode = simNodes.find((n) => n.data.id === hoveredNode);
+                  if (hNode?.x != null && hNode?.y != null) {
+                    const dx = node.x - hNode.x, dy = node.y - hNode.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > 0 && dist < 140) {
+                      const push = (1 - dist / 140) * 12;
+                      rippleX = (dx / dist) * push;
+                      rippleY = (dy / dist) * push;
+                    }
+                  }
+                }
+                const nx = node.x + rippleX, ny = node.y + rippleY;
                 return (
-                  <g key={node.data.id} onMouseEnter={() => setHoveredNode(node.data.id)} onMouseLeave={() => setHoveredNode(null)} onClick={(e) => { e.stopPropagation(); if (!cascadeAnimating) setSelectedNode(selectedNode === node.data.id ? null : node.data.id); }} className="cursor-pointer" style={{ transition: "opacity 0.3s ease" }} opacity={dimmed ? 0.25 : 1}>
+                  <g key={node.data.id} transform={`translate(${rippleX},${rippleY})`} onMouseEnter={() => setHoveredNode(node.data.id)} onMouseLeave={() => setHoveredNode(null)} onClick={(e) => { e.stopPropagation(); if (!cascadeAnimating) setSelectedNode(selectedNode === node.data.id ? null : node.data.id); }} className="cursor-pointer" style={{ transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease" }} opacity={dimmed ? 0.25 : 1}>
                     {!dimmed && <circle cx={node.x} cy={node.y} r={r + 12} fill={color} opacity={isHovered || isSelected ? 0.18 : 0.06} filter="url(#node-glow)" />}
                     {isDeclining && !dimmed && !isCascadeVictim && <circle cx={node.x} cy={node.y} r={r + 5} fill="none" stroke="#f97316" strokeWidth={0.8} strokeDasharray="2 2" opacity={0.4}><animate attributeName="opacity" values="0.2;0.5;0.2" dur="3s" repeatCount="indefinite" /></circle>}
                     {isAnimVictim && <circle cx={node.x} cy={node.y} r={r} fill="none" stroke="#ef4444" strokeWidth={2} opacity={0}><animate attributeName="r" from={String(r)} to={String(r + 30)} dur="0.7s" fill="freeze" /><animate attributeName="opacity" from="0.8" to="0" dur="0.7s" fill="freeze" /></circle>}
@@ -550,11 +566,11 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
               </motion.div>
             )}
           </AnimatePresence>
-          <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]" style={{ background: "rgba(6,14,8,0.85)" }}>
-            <button onClick={() => handleZoomSlider(Math.max(0.2, transform.k - 0.3))} className="text-white/40 hover:text-white/70 text-sm font-mono w-5 h-5 flex items-center justify-center transition">−</button>
-            <input type="range" min={0.2} max={5} step={0.05} value={transform.k} onChange={(e) => handleZoomSlider(parseFloat(e.target.value))} className="w-24 h-1 appearance-none bg-white/10 rounded-full cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-400/70 [&::-webkit-slider-thumb]:cursor-pointer" />
-            <button onClick={() => handleZoomSlider(Math.min(5, transform.k + 0.3))} className="text-white/40 hover:text-white/70 text-sm font-mono w-5 h-5 flex items-center justify-center transition">+</button>
-            <span className="text-[10px] text-white/25 ml-1 w-8 text-right tabular-nums">{(transform.k * 100).toFixed(0)}%</span>
+          <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2 px-3 py-2 border border-white/[0.06]" style={{ background: "rgba(8,8,8,0.9)" }}>
+            <button onClick={() => handleZoomSlider(Math.max(0.2, transform.k - 0.3))} className="text-white/30 hover:text-white/60 text-xs font-mono w-5 h-5 flex items-center justify-center transition">−</button>
+            <input type="range" min={0.2} max={5} step={0.05} value={transform.k} onChange={(e) => handleZoomSlider(parseFloat(e.target.value))} className="w-20 h-px appearance-none bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2 [&::-webkit-slider-thumb]:h-2 [&::-webkit-slider-thumb]:bg-white/40 [&::-webkit-slider-thumb]:cursor-pointer" />
+            <button onClick={() => handleZoomSlider(Math.min(5, transform.k + 0.3))} className="text-white/30 hover:text-white/60 text-xs font-mono w-5 h-5 flex items-center justify-center transition">+</button>
+            <span className="text-[9px] text-white/20 ml-1 w-8 text-right tabular-nums font-mono">{(transform.k * 100).toFixed(0)}%</span>
           </div>
         </div>
       )}
