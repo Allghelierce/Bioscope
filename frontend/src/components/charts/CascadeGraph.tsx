@@ -494,7 +494,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     const sLinks: SimLink[] = graphEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => ({ source: nodeMap.get(e.source)!, target: nodeMap.get(e.target)!, edgeType: e.type })).filter((l) => l.source && l.target);
     
     const trophicGroups = Object.keys(TROPHIC_LAYERS);
-    const clusterRadius = Math.min(dims.w, dims.h) * 0.45;
+    const clusterRadius = Math.min(dims.w, dims.h) * 0.55;
     const clusterCenters: Record<string, { x: number; y: number }> = {};
     trophicGroups.forEach((g, i) => {
       const angle = (2 * Math.PI * i) / trophicGroups.length - Math.PI / 2;
@@ -502,11 +502,11 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
     });
 
     const sim = forceSimulation<SimNode>(sNodes)
-      .force("link", forceLink<SimNode, SimLink>(sLinks).id((d) => d.data.id).distance(120).strength(0.05))
-      .force("charge", forceManyBody<SimNode>().strength(-350).distanceMax(600))
-      .force("collide", forceCollide<SimNode>().radius((d) => d.radius + 28).strength(0.8).iterations(2))
-      .force("x", forceX<SimNode>((d) => (clusterCenters[d.data.trophic_level] ?? { x: dims.w / 2 }).x).strength(0.1))
-      .force("y", forceY<SimNode>((d) => (clusterCenters[d.data.trophic_level] ?? { y: dims.h / 2 }).y).strength(0.1))
+      .force("link", forceLink<SimNode, SimLink>(sLinks).id((d) => d.data.id).distance(50).strength(0.03))
+      .force("charge", forceManyBody<SimNode>().strength(-80).distanceMax(200))
+      .force("collide", forceCollide<SimNode>().radius((d) => d.radius + 10).strength(0.9).iterations(3))
+      .force("x", forceX<SimNode>((d) => (clusterCenters[d.data.trophic_level] ?? { x: dims.w / 2 }).x).strength(0.35))
+      .force("y", forceY<SimNode>((d) => (clusterCenters[d.data.trophic_level] ?? { y: dims.h / 2 }).y).strength(0.35))
       .alphaDecay(0.03).velocityDecay(0.4);
 
     const drag = d3Drag<any, SimNode>()
@@ -539,7 +539,25 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
         setSimNodes([...sNodes]);
         setSimLinks([...sLinks]);
       }
-      if (sim.alpha() > 0.001) animFrameRef.current = requestAnimationFrame(tick);
+      if (sim.alpha() > 0.001) {
+        animFrameRef.current = requestAnimationFrame(tick);
+      } else if (!hasExisting) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        sNodes.forEach((n) => {
+          if (n.x != null && n.y != null) {
+            minX = Math.min(minX, n.x - n.radius); maxX = Math.max(maxX, n.x + n.radius);
+            minY = Math.min(minY, n.y - n.radius); maxY = Math.max(maxY, n.y + n.radius);
+          }
+        });
+        const pad = 60;
+        const bw = maxX - minX + pad * 2;
+        const bh = maxY - minY + pad * 2;
+        const scale = Math.min(dims.w / bw, dims.h / bh, 1);
+        const tx = dims.w / 2 - (minX + maxX) / 2 * scale;
+        const ty = dims.h / 2 - (minY + maxY) / 2 * scale;
+        const fitTransform = zoomIdentity.translate(tx, ty).scale(scale);
+        select(svgRef.current!).transition().duration(600).call(zoomBehavior.transform as any, fitTransform);
+      }
     };
     animFrameRef.current = requestAnimationFrame(tick);
     dragRef.current = drag;
@@ -616,20 +634,22 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
 
   return (
     <motion.div ref={containerRef} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className={`glass rounded-2xl p-6 ${isFullscreen ? "fixed inset-0 z-[100] rounded-none bg-[#030303]" : ""}`}>
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
-        <div>
-          <h3 className="text-lg font-semibold">
-            Ecosystem Dependency Graph
-            {(zone || selectedEcosystem) && <span className="text-sm font-normal text-white/40 ml-2">— {activeLabel}</span>}
-          </h3>
-          <p className="text-sm text-white/40 mt-1">{showEcoBrowser && !zone ? "Choose an ecosystem to explore its food web, or search by habitat type" : "Drag to pan, click species to inspect, simulate removal to see cascade effects"}</p>
+      {!isFullscreen && (
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-semibold">
+              Ecosystem Dependency Graph
+              {(zone || selectedEcosystem) && <span className="text-sm font-normal text-white/40 ml-2">— {activeLabel}</span>}
+            </h3>
+            <p className="text-sm text-white/40 mt-1">{showEcoBrowser && !zone ? "Choose an ecosystem to explore its food web, or search by habitat type" : "Drag to pan, click species to inspect, simulate removal to see cascade effects"}</p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {!zone && <button onClick={() => { if (showEcoBrowser) setShowEcoBrowser(false); else { setShowEcoBrowser(true); setSelectedEcosystem(null); } }} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition">{showEcoBrowser ? "Show Full Graph" : "Browse Ecosystems"}</button>}
+            {hoveredNode && cascadeVictims.size > 0 && <span className="text-sm text-orange-400 font-medium animate-pulse">cascade impact: {cascadeImpactPct.toFixed(1)}%</span>}
+            {totalRemoved > 0 && (<><span className="text-sm text-red-400 font-medium">{totalRemoved} removed</span><button onClick={() => { setRemovedNodes(new Set()); setSelectedNode(null); setAiInterpretation(null); setCascadeTree(null); setRemovalLog([]); setShowReport(false); }} className="text-xs px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 transition">Reset</button></>)}
+          </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {!zone && <button onClick={() => { if (showEcoBrowser) setShowEcoBrowser(false); else { setShowEcoBrowser(true); setSelectedEcosystem(null); } }} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition">{showEcoBrowser ? "Show Full Graph" : "Browse Ecosystems"}</button>}
-          {hoveredNode && cascadeVictims.size > 0 && <span className="text-sm text-orange-400 font-medium animate-pulse">cascade impact: {cascadeImpactPct.toFixed(1)}%</span>}
-          {totalRemoved > 0 && (<><span className="text-sm text-red-400 font-medium">{totalRemoved} removed</span><button onClick={() => { setRemovedNodes(new Set()); setSelectedNode(null); setAiInterpretation(null); setCascadeTree(null); setRemovalLog([]); setShowReport(false); }} className="text-xs px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 transition">Reset</button></>)}
-        </div>
-      </div>
+      )}
 
       <AnimatePresence>
         {showEcoBrowser && !zone && (
@@ -700,15 +720,23 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
         </div>
       )}
 
-      {(!showEcoBrowser || zone) && (
+      {(!showEcoBrowser || zone) && !isFullscreen && (
         <div className="flex items-center justify-center gap-4 mb-3">
           {Object.entries(EDGE_COLORS_BRIGHT).map(([type, color]) => (<div key={type} className="flex items-center gap-1.5"><div className="w-4 h-0.5 rounded" style={{ backgroundColor: color }} /><span className="text-[10px] text-white/30 capitalize">{type}</span></div>))}
         </div>
       )}
 
       {(!showEcoBrowser || zone) && (
-        <div className="relative rounded-xl overflow-hidden border border-white/[0.04]" style={{ background: "#060a07", height: dims.h }}>
+        <div className={`relative overflow-hidden border border-white/[0.04] ${isFullscreen ? "rounded-none h-full" : "rounded-xl"}`} style={{ background: "#060a07", height: isFullscreen ? "100%" : dims.h }}>
           <div className="absolute inset-0 pointer-events-none z-[1]" style={{ background: "radial-gradient(ellipse 70% 60% at 50% 50%, transparent 40%, rgba(0,0,0,0.6) 100%)" }} />
+          {isFullscreen && (
+            <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 px-3 py-2 border border-white/[0.06] rounded-lg" style={{ background: "rgba(8,8,8,0.85)" }}>
+              {Object.entries(EDGE_COLORS_BRIGHT).map(([type, color]) => (<div key={type} className="flex items-center gap-1.5"><div className="w-4 h-0.5 rounded" style={{ backgroundColor: color }} /><span className="text-[10px] text-white/40 capitalize">{type}</span></div>))}
+              <div className="border-t border-white/[0.06] pt-1.5 mt-0.5 flex flex-col gap-1">
+                <div className="flex items-center gap-1.5"><span className="text-red-400 text-[10px]">◎</span><span className="text-[10px] text-white/30">keystone</span></div>
+              </div>
+            </div>
+          )}
           <svg
             ref={svgRef}
             width={dims.w}
@@ -753,16 +781,16 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
             <rect width={dims.w} height={dims.h} fill="url(#dot-grid)" pointerEvents="none" />
             <g ref={gRef} transform={transform.toString()}>
               {Object.keys(TROPHIC_LAYERS).map((level, i) => {
-                const angle = (2 * Math.PI * i) / Object.keys(TROPHIC_LAYERS).length - Math.PI / 2;
-                const cr = Math.min(dims.w, dims.h) * 0.32;
-                const cx = dims.w / 2 + Math.cos(angle) * cr;
-                const cy = dims.h / 2 + Math.sin(angle) * cr;
+                const trophicKeys = Object.keys(TROPHIC_LAYERS);
+                const angle = (2 * Math.PI * i) / trophicKeys.length - Math.PI / 2;
+                const cr = Math.min(dims.w, dims.h) * 0.55;
+                const lx = dims.w / 2 + Math.cos(angle) * (cr * 1.25);
+                const ly = dims.h / 2 + Math.sin(angle) * (cr * 1.25);
                 const label = level.replace(/_/g, " ");
                 const color = LEVEL_COLORS[level] || "#666";
                 return (
                   <g key={`cluster-${level}`}>
-                    <circle cx={cx} cy={cy} r={cr * 0.38} fill="none" stroke={color} strokeWidth={0.5} opacity={0.08} strokeDasharray="4 6" />
-                    <text x={cx} y={cy - cr * 0.38 - 6} fill={color} fontSize={8} opacity={0.3} textAnchor="middle" fontWeight="500" style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</text>
+                    <text x={lx} y={ly + 4} fill={color} fontSize={11} opacity={0.2} textAnchor="middle" fontWeight="600" style={{ textTransform: "uppercase", letterSpacing: "0.15em" }}>{label}</text>
                   </g>
                 );
               })}
@@ -804,9 +832,9 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                 const color = LEVEL_COLORS[node.data.trophic_level] || "#64748b";
                 const isHovered = hoveredNode === node.data.id; const isSelected = selectedNode === node.data.id;
                 const isConnected = connectedTo.has(node.data.id); const isCascadeVictim = cascadeVictims.has(node.data.id);
-                const isAnimVictim = animatedVictims.has(node.data.id); const isDeclining = node.data.decline_trend < -30;
+                const isAnimVictim = animatedVictims.has(node.data.id);
                 const dimmed = activeId && !isHovered && !isSelected && !isConnected && !isCascadeVictim;
-                const isKeystone = (node.data.zone_keystone_score ?? node.data.keystone_score ?? 0) > 0.02;
+                const isKeystone = (node.data.zone_keystone_score ?? node.data.keystone_score ?? 0) > 0.01;
                 const r = isHovered || isSelected ? node.radius + 6 : node.radius + 2;
                 let rippleX = 0, rippleY = 0;
                 if (hNode && !isHovered) {
@@ -818,11 +846,12 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                     rippleY = (dy / dist) * push;
                   }
                 }
-                const rx = node.x + rippleX, ry = node.y + rippleY;
+                const bx = node.x, by = node.y;
                 return (
                   <g
                     key={node.data.id}
                     className="node-group cursor-pointer"
+                    style={{ opacity: dimmed ? 0.25 : 1, transition: "opacity 0.2s ease" }}
                     onMouseEnter={() => setHoveredThrottled(node.data.id)}
                     onMouseLeave={() => setHoveredThrottled(null)}
                     onClick={(e) => {
@@ -841,16 +870,14 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                         }
                       }
                     }}
-                    style={{ opacity: dimmed ? 0.25 : 1 }}
                   >
-                    {isAnimVictim && <circle cx={rx} cy={ry} r={r} fill="none" stroke="#ef4444" strokeWidth={2} opacity={0}><animate attributeName="r" from={String(r)} to={String(r + 30)} dur="0.7s" fill="freeze" /><animate attributeName="opacity" from="0.8" to="0" dur="0.7s" fill="freeze" /></circle>}
-                    {isKeystone && !dimmed && !isCascadeVictim && (
-                      <circle cx={rx} cy={ry} r={r + 6} fill="none" stroke="rgba(239,68,68,0.5)" strokeWidth={1.5}><animate attributeName="opacity" values="0.3;0.7;0.3" dur="3s" repeatCount="indefinite" /></circle>
-                    )}
-                    {isDeclining && !isKeystone && !dimmed && !isCascadeVictim && (
-                      <circle cx={rx} cy={ry} r={r + 5} fill="none" stroke="#f97316" strokeWidth={1}><animate attributeName="opacity" values="0.2;0.6;0.2" dur="2.5s" repeatCount="indefinite" /></circle>
-                    )}
-                    <circle cx={rx} cy={ry} r={r} fill={isCascadeVictim || isAnimVictim ? "rgba(239,68,68,0.3)" : "#0a0f0b"} stroke={isSelected ? "#fff" : isHovered ? "rgba(255,255,255,0.7)" : isCascadeVictim ? "#ef4444" : isKeystone ? "rgba(239,68,68,0.7)" : color} strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} opacity={isCascadeVictim ? 0.4 : 1} />
+                    <g style={{ transform: `translate(${rippleX}px, ${rippleY}px)`, transition: "transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)" }}>
+                    {isAnimVictim && <circle cx={bx} cy={by} r={r} fill="none" stroke="#ef4444" strokeWidth={2} opacity={0}><animate attributeName="r" from={String(r)} to={String(r + 30)} dur="0.7s" fill="freeze" /><animate attributeName="opacity" from="0.8" to="0" dur="0.7s" fill="freeze" /></circle>}
+                    {isKeystone && !dimmed && !isCascadeVictim && (<>
+                      <circle cx={bx} cy={by} r={r + 8} fill="none" stroke="#ef4444" strokeWidth={2.5} opacity={0.7}><animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" /></circle>
+                      <circle cx={bx} cy={by} r={r + 8} fill="none" stroke="#ef4444" strokeWidth={6} opacity={0.08} />
+                    </>)}
+                    <circle cx={bx} cy={by} r={r} fill={isCascadeVictim || isAnimVictim ? "rgba(239,68,68,0.3)" : "#0a0f0b"} stroke={isSelected ? "#fff" : isHovered ? "rgba(255,255,255,0.7)" : isCascadeVictim ? "#ef4444" : isKeystone ? "rgba(239,68,68,0.7)" : color} strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5} opacity={isCascadeVictim ? 0.4 : 1} />
                     {(() => {
                       const photoUrl = speciesPhotos[node.data.id];
                       const clipId = `clip-${node.data.id.replace(/[^a-zA-Z0-9]/g, "-")}`;
@@ -858,8 +885,8 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                         return (
                           <image
                             href={photoUrl}
-                            x={rx - r + 1.5}
-                            y={ry - r + 1.5}
+                            x={bx - r + 1.5}
+                            y={by - r + 1.5}
                             width={(r - 1.5) * 2}
                             height={(r - 1.5) * 2}
                             clipPath={`url(#${clipId})`}
@@ -869,11 +896,12 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                           />
                         );
                       }
-                      return <circle cx={rx} cy={ry} r={r - 2} fill={`${color}30`} style={{ pointerEvents: "none" }} />;
+                      return <circle cx={bx} cy={by} r={r - 2} fill={`${color}30`} style={{ pointerEvents: "none" }} />;
                     })()}
-                    {(isCascadeVictim || isAnimVictim) && <text x={rx} y={ry + r * 0.35} textAnchor="middle" fill="#ef4444" fontSize={r * 1.4} fontWeight="bold" style={{ pointerEvents: "none" }}>{"\u00d7"}</text>}
-                    {isKeystone && !dimmed && !isCascadeVictim && <text x={rx} y={ry - r - 6} textAnchor="middle" fill="rgba(239,68,68,0.5)" fontSize={9} opacity={0.7} style={{ pointerEvents: "none" }}>★</text>}
-                    {(isHovered || isSelected) && <text x={rx} y={ry + r + 12} textAnchor="middle" fill={isCascadeVictim ? "rgba(239,68,68,0.6)" : isKeystone ? "rgba(239,68,68,0.7)" : "#fff"} fontSize={10} fontWeight="600" letterSpacing="0.01em" paintOrder="stroke" stroke="rgba(6,10,7,0.9)" strokeWidth={4} style={{ textDecoration: isCascadeVictim ? "line-through" : "none" }}>{node.data.common_name || node.data.id}</text>}
+                    {(isCascadeVictim || isAnimVictim) && <text x={bx} y={by + r * 0.35} textAnchor="middle" fill="#ef4444" fontSize={r * 1.4} fontWeight="bold" style={{ pointerEvents: "none" }}>{"\u00d7"}</text>}
+                    {isKeystone && !dimmed && !isCascadeVictim && <text x={bx} y={by - r - 10} textAnchor="middle" fill="#ef4444" fontSize={13} opacity={0.9} style={{ pointerEvents: "none" }}>★</text>}
+                    {(isHovered || isSelected) && <text x={bx} y={by + r + 12} textAnchor="middle" fill={isCascadeVictim ? "rgba(239,68,68,0.6)" : isKeystone ? "rgba(239,68,68,0.7)" : "#fff"} fontSize={10} fontWeight="600" letterSpacing="0.01em" paintOrder="stroke" stroke="rgba(6,10,7,0.9)" strokeWidth={4} style={{ textDecoration: isCascadeVictim ? "line-through" : "none" }}>{node.data.common_name || node.data.id}</text>}
+                    </g>
                   </g>
                 );
               });
@@ -891,7 +919,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
                   <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Observations</div><div className="text-sm font-semibold text-white">{selectedData.observations.toLocaleString()}</div></div>
                   {selectedData.zone_count != null && <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Zones</div><div className="text-sm font-semibold text-white">{selectedData.zone_count}</div></div>}
                   <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Trophic Level</div><div className="text-sm font-semibold capitalize" style={{ color: LEVEL_COLORS[selectedData.trophic_level] }}>{selectedData.trophic_level.replace("_", " ")}</div></div>
-                  <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Keystone</div><div className={`text-sm font-semibold ${((selectedData.zone_keystone_score ?? selectedData.keystone_score) ?? 0) > 0.02 ? "text-orange-400" : "text-white/60"}`}>{(((selectedData.zone_keystone_score ?? selectedData.keystone_score) ?? 0) * 100).toFixed(1)}%</div></div>
+                  <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Keystone</div><div className={`text-sm font-semibold ${((selectedData.zone_keystone_score ?? selectedData.keystone_score) ?? 0) > 0.01 ? "text-orange-400" : "text-white/60"}`}>{(((selectedData.zone_keystone_score ?? selectedData.keystone_score) ?? 0) * 100).toFixed(1)}%</div></div>
                   <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">YoY Trend</div><div className={`text-sm font-semibold ${selectedData.decline_trend < -30 ? "text-red-400" : selectedData.decline_trend < 0 ? "text-orange-400" : "text-emerald-400"}`}>{selectedData.decline_trend > 0 ? "+" : ""}{selectedData.decline_trend.toFixed(1)}%</div></div>
                   <div className="bg-white/5 rounded-lg p-2"><div className="text-[10px] text-white/30 uppercase">Cascade</div><div className={`text-sm font-semibold ${selectedCascadePct > 30 ? "text-red-400" : selectedCascadePct > 15 ? "text-orange-400" : "text-emerald-400"}`}>{selectedCascadePct.toFixed(1)}%</div></div>
                 </div>
@@ -1006,6 +1034,10 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
             </button>
           </div>
         </div>
+      )}
+
+      {isFullscreen && (
+        <button onClick={() => setIsFullscreen(false)} className="fixed bottom-6 right-6 z-[110] w-10 h-10 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center text-lg font-bold transition shadow-lg shadow-red-500/30">×</button>
       )}
 
       <AnimatePresence>
@@ -1150,7 +1182,7 @@ export default function CascadeGraph({ zone, ecosystem }: Props) {
       )}
 
       <div className="mt-4 flex items-center justify-between text-xs text-white/30">
-        <span>Drag to pan · Click to inspect · <span className="text-orange-400/50">◌ = declining</span> · <span className="text-red-400/50">◎ = keystone</span></span>
+        <span>Drag to pan · Click to inspect · <span className="text-red-400/50">◎ = keystone</span></span>
         <span>{simNodes.length} species · {simLinks.length} connections{selectedEcosystem && ` in ${selectedEcosystem}`}{zone && ` in ${zone.name}`}</span>
       </div>
     </motion.div>

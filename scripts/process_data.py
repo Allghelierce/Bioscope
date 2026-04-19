@@ -620,8 +620,8 @@ for eco_name, eco_info in ECOSYSTEM_TYPES.items():
     if len(eco_node_ids) < 3:
         continue
 
-    # If too many, pick top 100: ensure trophic balance then fill by observation count
-    if len(eco_node_ids) > 100:
+    # If too many, pick top 150: ensure trophic balance then fill by observation count
+    if len(eco_node_ids) > 150:
         eco_by_level = defaultdict(list)
         for nid in eco_node_ids:
             node = next(n for n in dependency_nodes if n["id"] == nid)
@@ -635,7 +635,7 @@ for eco_name, eco_info in ECOSYSTEM_TYPES.items():
         remaining = [(nid, next(n["observations"] for n in dependency_nodes if n["id"] == nid)) for nid in eco_node_ids - kept]
         remaining.sort(key=lambda x: x[1], reverse=True)
         for nid, _ in remaining:
-            if len(kept) >= 100:
+            if len(kept) >= 150:
                 break
             kept.add(nid)
         eco_node_ids = kept
